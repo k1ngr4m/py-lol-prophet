@@ -10,7 +10,13 @@ import time
 import json
 import re
 from typing import Any, List, Dict, Optional, TypeVar, Callable, Union
+from services.lcu import adapt
 
+# 常量定义
+HTTP_SCHEME = "https"
+WS_SCHEME = "wss"
+AUTH_USERNAME = "riot"
+HOST = "127.0.0.1"
 T = TypeVar('T')
 
 
@@ -88,6 +94,25 @@ def in_array(item: T, array: List[T]) -> bool:
     """
     return item in array
 
+def get_lol_client_api_info():
+    """
+    从 lockfile 获取 LCU 客户端端口和token
+    示例 lockfile 内容: 1234 abcdefghijklmnopq
+    """
+    # lockfile_path = os.path.expanduser("~/AppData/Local/Programs/Riot Games/League of Legends/lockfile")
+    # if not os.path.exists(lockfile_path):
+    #     raise FileNotFoundError("找不到 lockfile，请确认 LOL 是否启动")
+    #
+    # with open(lockfile_path, "r", encoding="utf-8") as f:
+    #     content = f.read().strip()
+    #
+    # parts = content.split(":")
+    # if len(parts) < 5:
+    #     raise ValueError("lockfile 格式不正确")
+    #
+    # port = int(parts[2])
+    # token = parts[3]
+    return adapt.get_lol_client_api_info_adapt()
 
 def compare_version(version1: str, version2: str) -> int:
     """
@@ -216,3 +241,13 @@ def retry(attempts: int, delay: float, func: Callable, *args, **kwargs) -> Any:
     if last_exception:
         raise last_exception
     return None
+
+
+
+def generate_client_api_url(port: int, token: str) -> str:
+    """生成 LCU API 访问地址"""
+    return f"{HTTP_SCHEME}://{AUTH_USERNAME}:{token}@{HOST}:{port}"
+
+def generate_client_ws_url(port: int) -> str:
+    """生成 LCU WebSocket 地址"""
+    return f"{WS_SCHEME}://{HOST}:{port}"

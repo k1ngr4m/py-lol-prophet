@@ -5,7 +5,7 @@ from typing import Optional, Any, Dict
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-
+from services.lcu import common
 
 class Client:
     _instance = None  # 单例实例
@@ -67,3 +67,6 @@ class Client:
 
     def http_delete(self, endpoint: str) -> Dict:
         return self._request("DELETE", endpoint)
+
+    def fmt_client_api_url(self) -> str:
+        return common.generate_client_api_url(self.port, self.auth_token)
