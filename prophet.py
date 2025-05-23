@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from services.lcu.game_score import GameScore, calc_game_score
 from services.lcu import common
 import global_conf.global_conf as global_conf
-import services.logger as logger
+import services.logger.logger as logger
 
 class Prophet:
     """
@@ -71,19 +71,19 @@ class Prophet:
         # 这里需要实现LCU客户端的初始化
         # 由于原Go代码中的LCU客户端实现较为复杂，这里先留空
         # 后续会实现一个简化版的LCU客户端
-        # pass
-        try:
-            port, token = lcu.get_lol_client_api_info()
-            self.lcu_client = lcu.init_client(port, token)
-            self.rp_client = lcu.init_rp(port, token)
-            logger.info("LCU 客户端初始化完成")
-        except Exception as e:
-            logger.error(f"初始化LCU客户端失败: {e}")
+        pass
+        # try:
+        #     port, token = lcu.get_lol_client_api_info()
+        #     self.lcu_client = lcu.init_client(port, token)
+        #     self.rp_client = lcu.init_rp(port, token)
+        #     logger.info("LCU 客户端初始化完成")
+        # except Exception as e:
+        #     logger.error(f"初始化LCU客户端失败: {e}")
 
     def init_http_server(self):
         """初始化HTTP服务器"""
         from flask import Flask
-        from src.hh_lol_prophet.routes import Router
+        from routes import Router
         
         app = Flask(__name__)
         self.router = Router(app)
@@ -101,7 +101,7 @@ class Prophet:
     
     def init_ws_server(self):
         """初始化WebSocket服务器"""
-        from src.hh_lol_prophet.utils.ws import WebSocketServer
+        from services.lcu.ws import WebSocketServer
         
         self.ws_server = WebSocketServer(host='0.0.0.0', port=8081)
         self.ws_server.start()

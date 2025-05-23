@@ -18,7 +18,7 @@ import global_conf.global_conf as global_vars
 from services.lcu import common
 from pkg.os.admin.admin import must_run_with_admin
 from bootstrap.windows import init_console_adapt
-import services.logger as logger
+import services.logger.logger as logger
 import version as version
 
 
