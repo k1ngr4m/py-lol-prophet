@@ -251,3 +251,8 @@ def generate_client_api_url(port: int, token: str) -> str:
 def generate_client_ws_url(port: int) -> str:
     """生成 LCU WebSocket 地址"""
     return f"{WS_SCHEME}://{HOST}:{port}"
+
+
+class LolProcessNotFoundError(Exception):
+    def __init__(self, *args, **kwargs):  # real signature unknown
+        pass

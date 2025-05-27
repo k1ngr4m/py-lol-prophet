@@ -7,14 +7,10 @@ import time
 import urllib.request
 import urllib.error
 import urllib.parse
-
+from services.lcu.windows import get_lol_client_api_info
 from http.client import HTTPSConnection
 from urllib.parse import urlparse, parse_qs
 
-# 模拟 lcu.GetLolClientApiInfo()
-def get_lol_client_api_info():
-    # 实际应替换为真实逻辑，例如通过扫描进程或文件读取端口与 token
-    return 2999, "your-lcu-token"
 
 class LCUProxyHandler(http.server.BaseHTTPRequestHandler):
     proxy_url = ""
