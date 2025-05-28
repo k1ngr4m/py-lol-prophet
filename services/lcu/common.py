@@ -99,20 +99,22 @@ def get_lol_client_api_info():
     从 lockfile 获取 LCU 客户端端口和token
     示例 lockfile 内容: 1234 abcdefghijklmnopq
     """
-    # lockfile_path = os.path.expanduser("~/AppData/Local/Programs/Riot Games/League of Legends/lockfile")
-    # if not os.path.exists(lockfile_path):
-    #     raise FileNotFoundError("找不到 lockfile，请确认 LOL 是否启动")
-    #
-    # with open(lockfile_path, "r", encoding="utf-8") as f:
-    #     content = f.read().strip()
-    #
-    # parts = content.split(":")
-    # if len(parts) < 5:
-    #     raise ValueError("lockfile 格式不正确")
-    #
-    # port = int(parts[2])
-    # token = parts[3]
-    return adapt.get_lol_client_api_info_adapt()
+    lockfile_path = os.path.expanduser("~/AppData/Local/Programs/Riot Games/League of Legends/lockfile")
+    if not os.path.exists(lockfile_path):
+        raise FileNotFoundError("找不到 lockfile，请确认 LOL 是否启动")
+
+    with open(lockfile_path, "r", encoding="utf-8") as f:
+        content = f.read().strip()
+
+    parts = content.split(":")
+    if len(parts) < 5:
+        raise ValueError("lockfile 格式不正确")
+
+    port = int(parts[2])
+    token = parts[3]
+    print(port)
+    return port, token
+    # return adapt.get_lol_client_api_info_adapt()
 
 def compare_version(version1: str, version2: str) -> int:
     """
@@ -251,8 +253,3 @@ def generate_client_api_url(port: int, token: str) -> str:
 def generate_client_ws_url(port: int) -> str:
     """生成 LCU WebSocket 地址"""
     return f"{WS_SCHEME}://{HOST}:{port}"
-
-
-class LolProcessNotFoundError(Exception):
-    def __init__(self, *args, **kwargs):  # real signature unknown
-        pass
