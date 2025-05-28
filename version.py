@@ -16,8 +16,18 @@
 """
 版本信息模块，对应原Go代码中的version.go
 """
+import global_conf.global_conf as global_vars
 
 # 应用版本信息
-APP_VERSION = "1.0.0"  # 对应原Go代码中的APPVersion
-COMMIT = "unknown"     # 对应原Go代码中的Commit
-BUILD_TIME = "unknown" # 对应原Go代码中的BuildTime
+APP_VERSION = "0.3.0"  # 对应原Go代码中的APPVersion
+COMMIT = "dev"     # 对应原Go代码中的Commit
+BUILD_TIME = "" # 对应原Go代码中的BuildTime
+BUILD_USER = ""
+
+global_vars.set_app_info(global_vars.AppInfo(
+        version=APP_VERSION,
+        commit=COMMIT,
+        build_time=BUILD_TIME,
+        build_user=BUILD_USER
+    )
+)

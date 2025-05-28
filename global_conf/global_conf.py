@@ -125,6 +125,7 @@ class AppInfo:
     version: str = ""
     commit: str = ""
     build_time: str = ""
+    build_user: str = ""
 
 
 # 全局变量

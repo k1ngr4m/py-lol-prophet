@@ -17,45 +17,56 @@ class LCUProxyHandler(http.server.BaseHTTPRequestHandler):
     client_context = ssl._create_unverified_context()
 
     def do_GET(self):
-        try:
-            parsed = urllib.parse.urlparse(self.path)
-            url = f"{self.proxy_url}{parsed.path}?{parsed.query}"
-
-            req = urllib.request.Request(url, headers=self.headers)
-            with urllib.request.urlopen(req, context=self.client_context) as resp:
-                self.send_response(resp.status)
-                for key, value in resp.getheaders():
-                    self.send_header(key, value)
-                self.end_headers()
-                self.wfile.write(resp.read())
-        except Exception as e:
-            self.send_error(500, f"Internal error: {e}")
+        self.handle_request("GET")
 
     def do_POST(self):
-        self.do_METHOD("POST")
+        self.handle_request("POST")
 
     def do_PUT(self):
-        self.do_METHOD("PUT")
+        self.handle_request("PUT")
 
     def do_DELETE(self):
-        self.do_METHOD("DELETE")
+        self.handle_request("DELETE")
 
-    def do_METHOD(self, method):
+    def do_PATCH(self):
+        self.handle_request("PATCH")
+
+    def handle_request(self, method):
         try:
             parsed = urllib.parse.urlparse(self.path)
-            length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(length) if length else None
             url = f"{self.proxy_url}{parsed.path}?{parsed.query}"
 
-            req = urllib.request.Request(url, data=body, headers=self.headers, method=method)
+            # 处理headers
+            headers = {k: v for k, v in self.headers.items() if k.lower() != 'host'}
+
+            # 处理body
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length > 0 else None
+
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers=headers,
+                method=method
+            )
+
             with urllib.request.urlopen(req, context=self.client_context) as resp:
                 self.send_response(resp.status)
-                for key, value in resp.getheaders():
+                # 复制所有响应头
+                for key, value in resp.headers.items():
                     self.send_header(key, value)
                 self.end_headers()
                 self.wfile.write(resp.read())
+
+        except urllib.error.HTTPError as e:
+            self.send_response(e.code)
+            for key, value in e.headers.items():
+                self.send_header(key, value)
+            self.end_headers()
+            self.wfile.write(e.read())
         except Exception as e:
-            self.send_error(500, f"Internal error: {e}")
+            self.send_error(500, f"Internal error: {str(e)}")
+            logging.exception("Proxy error")
 
 def run_server(port):
     server_address = ('', port)

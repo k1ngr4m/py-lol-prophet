@@ -85,10 +85,6 @@ def must_run_with_main() -> Optional[Exception]:
 
 
 def main():
-    """
-    主函数
-    对应原Go代码中的main函数
-    """
     # 初始化命令行参数
     flag_init()
 

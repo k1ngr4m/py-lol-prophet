@@ -15,11 +15,16 @@ from contextlib import contextmanager
 from typing import Dict, Any, Optional
 
 import global_conf.global_conf as global_vars
+from conf import client
+from conf.client import valid_client_user_conf
 from services.lcu import common
 from pkg.os.admin.admin import must_run_with_admin
 from bootstrap.windows import init_console_adapt
 import services.logger.logger as logger
 import version as version
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.exc import SQLAlchemyError
 
 
 def init_conf():
@@ -37,9 +42,89 @@ def init_conf():
     global_vars.set_app_info(global_vars.AppInfo(
         version=version.APP_VERSION,
         commit=version.COMMIT,
-        build_time=version.BUILD_TIME
+        build_time=version.BUILD_TIME,
+        build_user=version.BUILD_USER
     ))
 
+def init_client_conf():
+    """
+    初始化客户端配置
+    1. 检查 SQLite 数据库文件是否存在
+    2. 不存在则创建数据库并初始化默认配置
+    3. 存在则从数据库读取配置并验证
+    """
+    db_path = client.SQLITE_DB_PATH
+
+    # 配置数据库日志
+    if global_vars.is_dev_mode():
+        db_logger = logging.getLogger('sqlalchemy.engine')
+        db_logger.setLevel(logging.INFO)
+    else:
+        db_logger = logging.getLogger('sqlalchemy.engine')
+        db_logger.setLevel(logging.WARNING)
+
+    try:
+        # 检查数据库文件是否存在
+        if not os.path.exists(db_path):
+            # 创建新数据库和配置
+            engine = create_engine(f"sqlite:///{db_path}")
+
+            # 创建 config 表
+            with engine.connect() as conn:
+                conn.execute(text("""
+                                  CREATE TABLE config
+                                  (
+                                      id  INTEGER PRIMARY KEY AUTOINCREMENT,
+                                      k   TEXT NOT NULL UNIQUE,
+                                      val TEXT NOT NULL
+                                  )
+                                  """))
+                conn.commit()
+
+            # 插入默认配置
+            default_conf_json = json.dumps(global_vars.DEFAULT_CLIENT_USER_CONF)
+            with engine.connect() as conn:
+                conn.execute(text("""
+                                  INSERT INTO config (k, val)
+                                  VALUES (:key, :value)
+                                  """), {"key": "local_client_conf", "value": default_conf_json})
+                conn.commit()
+
+            # 设置全局配置
+            global_vars.CLIENT_USER_CONF = global_vars.DEFAULT_CLIENT_USER_CONF
+
+        else:
+            # 打开现有数据库
+            engine = create_engine(f"sqlite:///{db_path}")
+
+            # 查询配置
+            with engine.connect() as conn:
+                result = conn.execute(text("""
+                                           SELECT val
+                                           FROM config
+                                           WHERE k = :key
+                                           """), {"key": "local_client_conf"}).fetchone()
+
+                if not result:
+                    raise ValueError("Configuration key not found in database")
+
+                # 解析并验证配置
+                config_data = json.loads(result[0])
+                if not valid_client_user_conf(config_data):
+                    raise ValueError("Invalid configuration format")
+
+                # 设置全局配置
+                global_vars.CLIENT_USER_CONF = config_data
+
+        # 保存数据库引擎到全局
+        global_vars.SqliteDB = engine
+        return True
+
+    except (SQLAlchemyError, ValueError, json.JSONDecodeError) as e:
+        logging.critical(f"Configuration initialization failed: {str(e)}")
+        if not os.path.exists(db_path):
+            logging.critical("Please try deleting the configuration file and retrying")
+        return False
 
 def init_db() -> Optional[Exception]:
     """
@@ -250,7 +335,7 @@ def init_app() -> Optional[Exception]:
     """
     try:
         # 检查管理员权限
-        # must_run_with_admin()
+        must_run_with_admin()
 
         # 初始化配置
         init_conf()
