@@ -3,6 +3,7 @@
 """
 
 import os
+import queue
 import sys
 import json
 import logging
@@ -16,10 +17,13 @@ from typing import Dict, Any, Optional
 
 import requests
 
+from dotenv import load_dotenv
 import global_conf.global_conf as global_vars
 from conf import client
 from conf.appConf import AppConf
 from conf.client import valid_client_user_conf
+from global_conf.global_conf import ClientUserConf
+from services.db.models.config import INIT_LOCAL_CLIENT_SQL, dataclass_json_encoder
 from services.lcu import common
 from pkg.os.admin.admin import must_run_with_admin
 from bootstrap.windows import init_console_adapt
@@ -30,27 +34,112 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 from conf.appConf import GET_REMOTE_CONF_API
 
+DEFAULT_TZ = "Asia/Shanghai"
+ENV_FILE = ".env"
+ENV_LOCAL_FILE = ".env.local"
+LOCAL_CONF_FILE = "config.json"
 
 def init_conf():
     """初始化配置"""
-    # 设置默认配置
+    # 加载环境变量
+    load_dotenv(LOCAL_CONF_FILE)
+    if os.path.exists(LOCAL_CONF_FILE):
+        load_dotenv(LOCAL_CONF_FILE, override=True)
+
     global_vars.Conf = global_vars.DEFAULT_APP_CONF
     global_vars.ClientUserConf = global_vars.DEFAULT_CLIENT_USER_CONF
 
     # 设置环境模式
-    env_mode = global_vars.get_env_mode()
+    env_mode = global_vars.is_env_mode_dev()
     if env_mode:
         global_vars.Conf.mode = env_mode
-    cfg = get_remote_conf()
+
+    remote_conf_queue = queue.Queue(maxsize=1)
+
+    # 启动远程配置获取线程
+    def fetch_remote_config():
+        try:
+            # 开发模式直接返回 None
+            if global_vars.Conf.mode == "debug":
+                remote_conf_queue.put(None)
+                return
+
+            # 获取远程配置
+            remote_conf = get_remote_conf()
+            if remote_conf:
+                # 保存到本地文件
+                with open(LOCAL_CONF_FILE, "w", encoding="utf-8") as f:
+                    json.dump(remote_conf.dict(by_alias=True), f, ensure_ascii=False, indent=2)
+            remote_conf_queue.put(remote_conf)
+        except Exception as e:
+            logging.error(f"Error fetching remote config: {str(e)}")
+            remote_conf_queue.put(None)
+
+    threading.Thread(target=fetch_remote_config, daemon=True).start()
+
+    # 初始化客户端配置
+    try:
+        init_client_conf()
+    except Exception as e:
+        logging.critical(f"本地配置错误, 请删除 {client.SQLITE_DB_PATH} 文件后重启, 错误信息: {str(e)}")
+        sys.exit(1)
+
+    # 获取远程配置结果
+    remote_conf = remote_conf_queue.get()
+
+    # 处理配置
+    if remote_conf is None:
+        # 尝试加载本地配置
+        if os.path.exists(LOCAL_CONF_FILE):
+            try:
+                with open(LOCAL_CONF_FILE, "r", encoding="utf-8") as f:
+                    local_conf_data = json.load(f)
+                    global_vars.Conf = AppConf.parse_obj(local_conf_data)
+            except Exception as e:
+                logging.error(f"本地配置错误: {str(e)}")
+                # 保持默认配置
+    else:
+        # 使用远程配置
+        global_vars.Conf = remote_conf
+
+    # 最终配置验证
+    if not valid_client_user_conf(global_vars.ClientUserConf):
+        logging.error("客户端配置验证失败，使用默认配置")
+        global_vars.ClientUserConf = global_vars.DEFAULT_CLIENT_USER_CONF
+
+    # try:
+    #     remote_conf = get_remote_conf()
+    #     # 更新全局配置
+    #     if remote_conf:
+    #         global_vars.Conf = remote_conf
+    #
+    #         # 保存到本地文件
+    #         with open(LOCAL_CONF_FILE, "w", encoding="utf-8") as f:
+    #             json.dump(remote_conf.dict(by_alias=True), f, ensure_ascii=False, indent=2)
+    # except Exception as e:
+    #     # 尝试加载本地保存的配置
+    #     if os.path.exists(LOCAL_CONF_FILE):
+    #         try:
+    #             with open(LOCAL_CONF_FILE, "r", encoding="utf-8") as f:
+    #                 local_conf_data = json.load(f)
+    #                 global_vars.Conf = AppConf.parse_obj(local_conf_data)
+    #         except Exception as load_err:
+    #             logging.error(f"Failed to load local config: {str(load_err)}")
+    #             # 使用默认配置作为回退
+    #             global_vars.Conf = global_vars.DEFAULT_APP_CONF
+    #
+    #     logging.error(f"Failed to get remote config: {str(e)}")
+    #
+    # init_client_conf()
 
 
     # 设置应用信息
-    global_vars.set_app_info(global_vars.AppInfo(
-        version=version.APP_VERSION,
-        commit=version.COMMIT,
-        build_time=version.BUILD_TIME,
-        build_user=version.BUILD_USER
-    ))
+    # global_vars.set_app_info(global_vars.AppInfo(
+    #     version=version.APP_VERSION,
+    #     commit=version.COMMIT,
+    #     build_time=version.BUILD_TIME,
+    #     build_user=version.BUILD_USER
+    # ))
 
 
 def get_remote_conf():
@@ -137,23 +226,24 @@ def init_client_conf():
 
             # 创建 config 表
             with engine.connect() as conn:
-                conn.execute(text("""
-                                  CREATE TABLE config
-                                  (
-                                      id  INTEGER PRIMARY KEY AUTOINCREMENT,
-                                      k   TEXT NOT NULL UNIQUE,
-                                      val TEXT NOT NULL
-                                  )
-                                  """))
+                # 执行前两条DDL语句
+                for stmt in INIT_LOCAL_CLIENT_SQL[:2]:
+                    conn.execute(text(stmt))
                 conn.commit()
 
             # 插入默认配置
-            default_conf_json = json.dumps(global_vars.DEFAULT_CLIENT_USER_CONF)
+            # default_conf_json = json.dumps(global_vars.DEFAULT_CLIENT_USER_CONF)
+            default_conf_json = json.dumps(
+                global_vars.DEFAULT_CLIENT_USER_CONF,
+                default=dataclass_json_encoder,  # 使用自定义编码器
+                ensure_ascii=False  # 允许非ASCII字符（如中文）
+            )
+            print(default_conf_json)
             with engine.connect() as conn:
                 conn.execute(text("""
-                                  INSERT INTO config (k, val)
+                                  INSERT INTO config (k, v)
                                   VALUES (:key, :value)
-                                  """), {"key": "local_client_conf", "value": default_conf_json})
+                                  """), {"key": "localClient", "value": default_conf_json})
                 conn.commit()
 
             # 设置全局配置

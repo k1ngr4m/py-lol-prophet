@@ -102,16 +102,16 @@ class AppConf:
 
 @dataclass
 class ClientUserConf:
-    auto_accept_game: bool = True
-    auto_pick_champ_id: int = 0
-    auto_ban_champ_id: int = 0
-    auto_send_team_horse: bool = True
-    should_send_self_horse: bool = True
-    horse_name_conf: List[str] = field(default_factory=lambda: ["通天代", "小代", "上等马", "中等马", "下等马", "牛马"])
-    choose_send_horse_msg: List[bool] = field(default_factory=lambda: [True, True, True, True, True, True])
-    choose_champ_send_msg_delay_sec: int = 3
-    should_in_game_save_msg_to_clip_board: bool = True
-    should_auto_open_browser: Optional[bool] = True
+    AutoAcceptGame: bool = True
+    AutoPickChampID: int = 0
+    AutoBanChampID: int = 0
+    AutoSendTeamHorse: bool = True
+    ShouldSendSelfHorse: bool = True
+    HorseNameConf: List[str] = field(default_factory=lambda: ["通天代", "小代", "上等马", "中等马", "下等马", "牛马"])
+    ChooseSendHorseMsg: List[bool] = field(default_factory=lambda: [True, True, True, True, True, True])
+    ChooseChampSendMsgDelaySec: int = 3
+    ShouldInGameSaveMsgToClipBoard: bool = True
+    ShouldAutoOpenBrowser: Optional[bool] = True
 
 
 @dataclass
