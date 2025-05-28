@@ -16,8 +16,8 @@ class ClientUserConf(BaseModel):
     auto_ban_champ_id: int = 0
     auto_send_team_horse: bool = False
     should_send_self_horse: bool = False
-    horse_name_conf: conlist(str, min_items=6, max_items=6) = ["马匹1", "马匹2", "马匹3", "马匹4", "马匹5", "马匹6"]
-    choose_send_horse_msg: conlist(bool, min_items=6, max_items=6) = [True, True, True, True, True, True]
+    horse_name_conf: conlist(str) = ["马匹1", "马匹2", "马匹3", "马匹4", "马匹5", "马匹6"]
+    choose_send_horse_msg: conlist(bool) = [True, True, True, True, True, True]
     choose_champ_send_msg_delay_sec: int = 0
     should_in_game_save_msg_to_clip_board: bool = False
     should_auto_open_browser: Optional[bool] = None
@@ -40,8 +40,8 @@ class UpdateClientUserConfReq(BaseModel):
     auto_ban_champ_id: Optional[int] = None
     auto_send_team_horse: Optional[bool] = None
     should_send_self_horse: Optional[bool] = None
-    horse_name_conf: Optional[conlist(str, min_items=6, max_items=6)] = None
-    choose_send_horse_msg: Optional[conlist(bool, min_items=6, max_items=6)] = None
+    horse_name_conf: Optional[conlist(str)] = None
+    choose_send_horse_msg: Optional[conlist(bool)] = None
     choose_champ_send_msg_delay_sec: Optional[int] = None
     should_in_game_save_msg_to_clip_board: Optional[bool] = None
     should_auto_open_browser: Optional[bool] = None

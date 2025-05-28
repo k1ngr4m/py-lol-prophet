@@ -14,8 +14,11 @@ import sqlite3
 from contextlib import contextmanager
 from typing import Dict, Any, Optional
 
+import requests
+
 import global_conf.global_conf as global_vars
 from conf import client
+from conf.appConf import AppConf
 from conf.client import valid_client_user_conf
 from services.lcu import common
 from pkg.os.admin.admin import must_run_with_admin
@@ -25,6 +28,7 @@ import version as version
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
+from conf.appConf import GET_REMOTE_CONF_API
 
 
 def init_conf():
@@ -37,6 +41,8 @@ def init_conf():
     env_mode = global_vars.get_env_mode()
     if env_mode:
         global_vars.Conf.mode = env_mode
+    cfg = get_remote_conf()
+
 
     # 设置应用信息
     global_vars.set_app_info(global_vars.AppInfo(
@@ -45,6 +51,66 @@ def init_conf():
         build_time=version.BUILD_TIME,
         build_user=version.BUILD_USER
     ))
+
+
+def get_remote_conf():
+    """
+    从远程服务器获取应用配置
+
+    Args:
+        remote_conf_api: 远程配置 API 的 URL
+
+    Returns:
+        AppConf: 解析后的应用配置对象
+
+    Raises:
+        ValueError: 如果无法解析配置或配置无效
+        RequestException: 如果请求失败
+    """
+    try:
+        # 发送 GET 请求，设置 2 秒超时
+        response = requests.get(GET_REMOTE_CONF_API, timeout=2)
+        response.raise_for_status()  # 检查 HTTP 错误状态码
+
+        # 解析响应为 JSON
+        response_data = response.json()
+
+        # 检查响应结构是否符合预期
+        if 'code' not in response_data or 'data' not in response_data:
+            raise ValueError("Invalid API response structure")
+
+        # 检查 API 返回码（假设 0 表示成功）
+        if response_data['code'] != 0:
+            raise ValueError(f"API returned non-zero code: {response_data['code']}")
+
+        # 解析嵌套的配置数据
+        config_data = response_data['data']
+
+        # 如果 data 是字符串，需要再次解析
+        if isinstance(config_data, str):
+            try:
+                config_data = json.loads(config_data)
+            except json.JSONDecodeError:
+                raise ValueError("Failed to parse nested JSON in 'data' field")
+
+        # 创建配置对象
+        app_conf = AppConf(**config_data)
+
+        # 验证配置是否有效
+        if not app_conf.app_name:
+            raise ValueError("Invalid configuration: app_name is empty")
+
+        return app_conf
+
+    # except Timeout:
+    #     raise RequestException("Request to remote config API timed out")
+    # except json.JSONDecodeError as e:
+    #     raise ValueError(f"Failed to parse API response JSON: {str(e)}")
+    # except RequestException as e:
+    #     raise RequestException(f"HTTP request failed: {str(e)}")
+    except Exception as e:
+        raise e
+
 
 def init_client_conf():
     """
