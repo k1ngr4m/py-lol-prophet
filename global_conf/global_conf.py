@@ -227,35 +227,35 @@ def set_client_user_conf(cfg: dict) -> ClientUserConf:
     with conf_lock:
         global ClientUserConf
 
-        if "auto_accept_game" in cfg and cfg["auto_accept_game"] is not None:
-            ClientUserConf.auto_accept_game = cfg["auto_accept_game"]
+        if "AutoAcceptGame" in cfg and cfg["AutoAcceptGame"] is not None:
+            ClientUserConf.AutoAcceptGame = cfg["AutoAcceptGame"]
 
-        if "auto_pick_champ_id" in cfg and cfg["auto_pick_champ_id"] is not None:
-            ClientUserConf.auto_pick_champ_id = cfg["auto_pick_champ_id"]
+        if "AutoPickChampID" in cfg and cfg["AutoPickChampID"] is not None:
+            ClientUserConf.AutoPickChampID = cfg["AutoPickChampID"]
 
-        if "auto_ban_champ_id" in cfg and cfg["auto_ban_champ_id"] is not None:
-            ClientUserConf.auto_ban_champ_id = cfg["auto_ban_champ_id"]
+        if "AutoBanChampID" in cfg and cfg["AutoBanChampID"] is not None:
+            ClientUserConf.AutoBanChampID = cfg["AutoBanChampID"]
 
-        if "auto_send_team_horse" in cfg and cfg["auto_send_team_horse"] is not None:
-            ClientUserConf.auto_send_team_horse = cfg["auto_send_team_horse"]
+        if "AutoSendTeamHorse" in cfg and cfg["AutoSendTeamHorse"] is not None:
+            ClientUserConf.AutoSendTeamHorse = cfg["AutoSendTeamHorse"]
 
-        if "should_send_self_horse" in cfg and cfg["should_send_self_horse"] is not None:
-            ClientUserConf.should_send_self_horse = cfg["should_send_self_horse"]
+        if "ShouldSendSelfHorse" in cfg and cfg["ShouldSendSelfHorse"] is not None:
+            ClientUserConf.ShouldSendSelfHorse = cfg["ShouldSendSelfHorse"]
 
-        if "horse_name_conf" in cfg and cfg["horse_name_conf"] is not None:
-            ClientUserConf.horse_name_conf = cfg["horse_name_conf"]
+        if "HorseNameConf" in cfg and cfg["HorseNameConf"] is not None:
+            ClientUserConf.HorseNameConf = cfg["HorseNameConf"]
 
-        if "choose_send_horse_msg" in cfg and cfg["choose_send_horse_msg"] is not None:
-            ClientUserConf.choose_send_horse_msg = cfg["choose_send_horse_msg"]
+        if "ChooseSendHorseMsg" in cfg and cfg["ChooseSendHorseMsg"] is not None:
+            ClientUserConf.ChooseSendHorseMsg = cfg["ChooseSendHorseMsg"]
 
-        if "choose_champ_send_msg_delay_sec" in cfg and cfg["choose_champ_send_msg_delay_sec"] is not None:
-            ClientUserConf.choose_champ_send_msg_delay_sec = cfg["choose_champ_send_msg_delay_sec"]
+        if "ChooseChampSendMsgDelaySec" in cfg and cfg["ChooseChampSendMsgDelaySec"] is not None:
+            ClientUserConf.ChooseChampSendMsgDelaySec = cfg["ChooseChampSendMsgDelaySec"]
 
-        if "should_in_game_save_msg_to_clip_board" in cfg and cfg["should_in_game_save_msg_to_clip_board"] is not None:
-            ClientUserConf.should_in_game_save_msg_to_clip_board = cfg["should_in_game_save_msg_to_clip_board"]
+        if "ShouldInGameSaveMsgToClipBoard" in cfg and cfg["ShouldInGameSaveMsgToClipBoard"] is not None:
+            ClientUserConf.ShouldInGameSaveMsgToClipBoard = cfg["ShouldInGameSaveMsgToClipBoard"]
 
-        if "should_auto_open_browser" in cfg and cfg["should_auto_open_browser"] is not None:
-            ClientUserConf.should_auto_open_browser = cfg["should_auto_open_browser"]
+        if "ShouldAutoOpenBrowser" in cfg and cfg["ShouldAutoOpenBrowser"] is not None:
+            ClientUserConf.ShouldAutoOpenBrowser = cfg["ShouldAutoOpenBrowser"]
 
         return ClientUserConf
 

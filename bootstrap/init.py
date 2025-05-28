@@ -37,7 +37,7 @@ from conf.appConf import GET_REMOTE_CONF_API
 DEFAULT_TZ = "Asia/Shanghai"
 ENV_FILE = ".env"
 ENV_LOCAL_FILE = ".env.local"
-LOCAL_CONF_FILE = "config.json"
+LOCAL_CONF_FILE = "./config.json"
 
 def init_conf():
     """初始化配置"""
@@ -103,34 +103,9 @@ def init_conf():
         global_vars.Conf = remote_conf
 
     # 最终配置验证
-    if not valid_client_user_conf(global_vars.ClientUserConf):
-        logging.error("客户端配置验证失败，使用默认配置")
-        global_vars.ClientUserConf = global_vars.DEFAULT_CLIENT_USER_CONF
-
-    # try:
-    #     remote_conf = get_remote_conf()
-    #     # 更新全局配置
-    #     if remote_conf:
-    #         global_vars.Conf = remote_conf
-    #
-    #         # 保存到本地文件
-    #         with open(LOCAL_CONF_FILE, "w", encoding="utf-8") as f:
-    #             json.dump(remote_conf.dict(by_alias=True), f, ensure_ascii=False, indent=2)
-    # except Exception as e:
-    #     # 尝试加载本地保存的配置
-    #     if os.path.exists(LOCAL_CONF_FILE):
-    #         try:
-    #             with open(LOCAL_CONF_FILE, "r", encoding="utf-8") as f:
-    #                 local_conf_data = json.load(f)
-    #                 global_vars.Conf = AppConf.parse_obj(local_conf_data)
-    #         except Exception as load_err:
-    #             logging.error(f"Failed to load local config: {str(load_err)}")
-    #             # 使用默认配置作为回退
-    #             global_vars.Conf = global_vars.DEFAULT_APP_CONF
-    #
-    #     logging.error(f"Failed to get remote config: {str(e)}")
-    #
-    # init_client_conf()
+    # if not valid_client_user_conf(global_vars.ClientUserConf):
+    #     logging.error("客户端配置验证失败，使用默认配置")
+    #     global_vars.ClientUserConf = global_vars.DEFAULT_CLIENT_USER_CONF
 
 
     # 设置应用信息
@@ -256,10 +231,10 @@ def init_client_conf():
             # 查询配置
             with engine.connect() as conn:
                 result = conn.execute(text("""
-                                           SELECT val
+                                           SELECT v
                                            FROM config
                                            WHERE k = :key
-                                           """), {"key": "local_client_conf"}).fetchone()
+                                           """), {"key": "localClient"}).fetchone()
 
                 if not result:
                     raise ValueError("Configuration key not found in database")
@@ -513,8 +488,8 @@ def init_app() -> Optional[Exception]:
         init_api(global_vars.Conf.buff_api)
 
         # 初始化数据库
-        if err := init_db():
-            return err
+        # if err := init_db():
+        #     return err
 
         # 初始化全局设置
         init_global()
