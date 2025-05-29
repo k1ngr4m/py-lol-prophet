@@ -1,7 +1,7 @@
 """
-全局配置模块，对应原Go代码中的global.go
+全局配置模块
 """
-
+import contextlib
 import os
 import json
 import hashlib
@@ -11,113 +11,10 @@ import time
 import uuid
 from typing import Dict, List, Tuple, Callable, Optional, Any, Union
 from dataclasses import dataclass, field
-from contextlib import contextmanager
-
-# 全局常量
-ENV_KEY_MODE = "HH_LOL_PROPHET_MODE"
-LOG_WRITER_CLEANUP_KEY = "log_writer"
-ZAP_LOGGER_CLEANUP_KEY = "zap_logger"
-OTEL_CLEANUP_KEY = "otel"
-DEFAULT_TZ = "Asia/Shanghai"
-
-
-# 模式枚举
-class Mode:
-    DEBUG = "debug"
-    RELEASE = "release"
-
-
-@dataclass
-class HorseScoreConf:
-    score: float
-    name: str
-
-
-@dataclass
-class RateItemConf:
-    limit: float
-    score_conf: List[List[float]]
-
-
-@dataclass
-class CalcScoreConf:
-    enabled: bool = True
-    game_min_duration: int = 900
-    allow_queue_id_list: List[int] = field(default_factory=lambda: [430, 420, 450, 440, 1700])
-    first_blood: Tuple[float, float] = (10, 5)
-    penta_kills: Tuple[float] = (20,)
-    quadra_kills: Tuple[float] = (10,)
-    triple_kills: Tuple[float] = (5,)
-    join_team_rate_rank: Tuple[float, float, float, float] = (10, 5, 5, 10)
-    gold_earned_rank: Tuple[float, float, float, float] = (10, 5, 5, 10)
-    hurt_rank: Tuple[float, float] = (10, 5)
-    money2hurt_rate_rank: Tuple[float, float] = (10, 5)
-    vision_score_rank: Tuple[float, float] = (10, 5)
-    minions_killed: List[List[float]] = field(default_factory=lambda: [[10, 20], [9, 10], [8, 5]])
-    kill_rate: List[RateItemConf] = field(default_factory=lambda: [
-        RateItemConf(limit=50, score_conf=[[15, 40], [10, 20], [5, 10]]),
-        RateItemConf(limit=40, score_conf=[[15, 20], [10, 10], [5, 5]])
-    ])
-    hurt_rate: List[RateItemConf] = field(default_factory=lambda: [
-        RateItemConf(limit=40, score_conf=[[15, 40], [10, 20], [5, 10]]),
-        RateItemConf(limit=30, score_conf=[[15, 20], [10, 10], [5, 5]])
-    ])
-    assist_rate: List[RateItemConf] = field(default_factory=lambda: [
-        RateItemConf(limit=50, score_conf=[[20, 30], [18, 25], [15, 20], [10, 10], [5, 5]]),
-        RateItemConf(limit=40, score_conf=[[20, 15], [15, 10], [10, 5], [5, 3]])
-    ])
-    adjust_kda: Tuple[float, float] = (2, 5)
-    horse: List[HorseScoreConf] = field(default_factory=lambda: [
-        HorseScoreConf(score=180, name="通天代"),
-        HorseScoreConf(score=150, name="小代"),
-        HorseScoreConf(score=125, name="上等马"),
-        HorseScoreConf(score=105, name="中等马"),
-        HorseScoreConf(score=95, name="下等马"),
-        HorseScoreConf(score=0.0001, name="牛马")
-    ])
-    merge_msg: bool = False
-
-
-@dataclass
-class AppConf:
-    calc_score: CalcScoreConf = field(default_factory=CalcScoreConf)
-    mode: str = Mode.RELEASE
-    app_name: str = "hh-lol-prophet"
-
-    class LogConf:
-        level: str = "info"
-
-    class OtlpConf:
-        endpoint_url: str = ""
-        token: str = ""
-
-    class BuffApi:
-        url: str = ""
-        timeout: int = 10
-
-    log: LogConf = field(default_factory=LogConf)
-    otlp: OtlpConf = field(default_factory=OtlpConf)
-    buff_api: BuffApi = field(default_factory=BuffApi)
-
-
-@dataclass
-class ClientUserConf:
-    AutoAcceptGame: bool = True
-    AutoPickChampID: int = 0
-    AutoBanChampID: int = 0
-    AutoSendTeamHorse: bool = True
-    ShouldSendSelfHorse: bool = True
-    HorseNameConf: List[str] = field(default_factory=lambda: ["通天代", "小代", "上等马", "中等马", "下等马", "牛马"])
-    ChooseSendHorseMsg: List[bool] = field(default_factory=lambda: [True, True, True, True, True, True])
-    ChooseChampSendMsgDelaySec: int = 3
-    ShouldInGameSaveMsgToClipBoard: bool = True
-    ShouldAutoOpenBrowser: Optional[bool] = True
-
-
-@dataclass
-class UserInfo:
-    mac_hash: str = ""
-    summoner: Any = None
+from contextlib import contextmanager, AbstractContextManager
+from conf import appConf, client
+from services.lcu.models.api import SummonerProfileData
+import threading
 
 
 @dataclass
@@ -127,40 +24,239 @@ class AppInfo:
     build_time: str = ""
     build_user: str = ""
 
+@dataclass
+class UserInfo:
+    mac_hash: str = ""
+    summoner: SummonerProfileData = None
 
-# 全局变量
-DEFAULT_CLIENT_USER_CONF = ClientUserConf()
-DEFAULT_APP_CONF = AppConf()
+# 全局常量
+ENV_KEY_MODE = "PROPHET_MODE"
 
-user_info = UserInfo()
-conf_lock = threading.Lock()
-Conf = AppConf()
-ClientUserConf = ClientUserConf()
-Logger = logging.getLogger("hh-lol-prophet")
-Cleanups = {}
-AppBuildInfo = AppInfo()
+ZAP_LOGGER_CLEANUP_KEY = "zap_logger"
+LOG_WRITER_CLEANUP_KEY = "log_writer"
+OTEL_CLEANUP_KEY = "otel"
 
-# 数据库连接
+cleanups_mu : threading.Lock = threading.Lock()
+DEFAULT_SHOULD_AUTO_OPEN_BROWSER_CFG : bool = True
+DEFAULT_CLIENT_USER_CONF : client.ClientUserConf = client.ClientUserConf(
+    AutoAcceptGame=True,
+    AutoPickChampID=0,
+    AutoBanChampID=0,
+    AutoSendTeamHorse=True,
+    ShouldSendSelfHorse=True,
+    HorseNameConf=["通天代", "小代", "上等马", "中等马", "下等马", "牛马"],
+    ChooseSendHorseMsg=[True, True, True, True, True, True],
+    ChooseChampSendMsgDelaySec=3,
+    ShouldInGameSaveMsgToClipBoard=True,
+    ShouldAutoOpenBrowser=DEFAULT_SHOULD_AUTO_OPEN_BROWSER_CFG
+)
+DEFAULT_APP_CONF : appConf.AppConf = appConf.AppConf(
+    BuffApi=appConf.BuffApi(),
+    CalcScore=appConf.CalcScoreConf(
+        Enabled=True,
+        GameMinDuration=900,
+        AllowQueueIDList=[430, 420, 450, 440, 1700],
+        FirstBlood=(10, 5),
+        PentaKills=(20,),
+        QuadraKills=(10,),
+        TripleKills=(5,),
+        JoinTeamRateRank=(10, 5, 5, 10),
+        GoldEarnedRank=(10, 5, 5, 10),
+        HurtRank=(10, 5),
+        Money2hurtRateRank=(10, 5),
+        VisionScoreRank=(10, 5),
+        MinionsKilled=[
+            (10, 20),
+            (9, 10),
+            (8, 5),
+        ],
+        KillRate=[
+            appConf.RateItemConf(
+                Limit=50,
+                ScoreConf=[
+                    (15, 40),
+                    (10, 20),
+                    (5, 10),
+                ]
+            ),
+            appConf.RateItemConf(
+                Limit=40,
+                ScoreConf=[
+                    (15, 20),
+                    (10, 10),
+                    (5, 5),
+                ]
+            ),
+        ],
+        HurtRate=[
+            appConf.RateItemConf(
+                Limit=40,
+                ScoreConf=[
+                    (15, 40),
+                    (10, 20),
+                    (5, 10),
+                ]
+            ),
+            appConf.RateItemConf(
+                Limit=30,
+                ScoreConf=[
+                    (15, 20),
+                    (10, 10),
+                    (5, 5),
+                ]
+            ),
+        ],
+        AssistRate=[
+            appConf.RateItemConf(
+                Limit=50,
+                ScoreConf=[
+                    (20, 30),
+                    (18, 25),
+                    (15, 20),
+                    (10, 10),
+                    (5, 5),
+                ]
+            ),
+            appConf.RateItemConf(
+                Limit=40,
+                ScoreConf=[
+                    (20, 15),
+                    (15, 10),
+                    (10, 5),
+                    (5, 3),
+                ]
+            ),
+        ],
+        AdjustKDA=(2, 5),
+        Horse=(
+            appConf.HorseScoreConf(Score=180, Name="通天代"),
+            appConf.HorseScoreConf(Score=150, Name="小代"),
+            appConf.HorseScoreConf(Score=125, Name="上等马"),
+            appConf.HorseScoreConf(Score=105, Name="中等马"),
+            appConf.HorseScoreConf(Score=95, Name="下等马"),
+            appConf.HorseScoreConf(Score=0.0001, Name="牛马"),
+        ),
+        MergeMsg=False
+    )
+)
+
+user_info: UserInfo = UserInfo()
+conf_mu: threading.Lock = threading.Lock()
+Conf: appConf.AppConf = appConf.AppConf(
+    BuffApi=appConf.BuffApi(),
+    CalcScore=appConf.CalcScoreConf(
+        Enabled=True,
+        GameMinDuration=900,
+        AllowQueueIDList=[430, 420, 450, 440, 1700],
+        FirstBlood=(10, 5),
+        PentaKills=(20,),
+        QuadraKills=(10,),
+        TripleKills=(5,),
+        JoinTeamRateRank=(10, 5, 5, 10),
+        GoldEarnedRank=(10, 5, 5, 10),
+        HurtRank=(10, 5),
+        Money2hurtRateRank=(10, 5),
+        VisionScoreRank=(10, 5),
+        MinionsKilled=[
+            (10, 20),
+            (9, 10),
+            (8, 5),
+        ],
+        KillRate=[
+            appConf.RateItemConf(
+                Limit=50,
+                ScoreConf=[
+                    (15, 40),
+                    (10, 20),
+                    (5, 10),
+                ]
+            ),
+            appConf.RateItemConf(
+                Limit=40,
+                ScoreConf=[
+                    (15, 20),
+                    (10, 10),
+                    (5, 5),
+                ]
+            ),
+        ],
+        HurtRate=[
+            appConf.RateItemConf(
+                Limit=40,
+                ScoreConf=[
+                    (15, 40),
+                    (10, 20),
+                    (5, 10),
+                ]
+            ),
+            appConf.RateItemConf(
+                Limit=30,
+                ScoreConf=[
+                    (15, 20),
+                    (10, 10),
+                    (5, 5),
+                ]
+            ),
+        ],
+        AssistRate=[
+            appConf.RateItemConf(
+                Limit=50,
+                ScoreConf=[
+                    (20, 30),
+                    (18, 25),
+                    (15, 20),
+                    (10, 10),
+                    (5, 5),
+                ]
+            ),
+            appConf.RateItemConf(
+                Limit=40,
+                ScoreConf=[
+                    (20, 15),
+                    (15, 10),
+                    (10, 5),
+                    (5, 3),
+                ]
+            ),
+        ],
+        AdjustKDA=(2, 5),
+        Horse=(
+            appConf.HorseScoreConf(Score=180, Name="通天代"),
+            appConf.HorseScoreConf(Score=150, Name="小代"),
+            appConf.HorseScoreConf(Score=125, Name="上等马"),
+            appConf.HorseScoreConf(Score=105, Name="中等马"),
+            appConf.HorseScoreConf(Score=95, Name="下等马"),
+            appConf.HorseScoreConf(Score=0.0001, Name="牛马"),
+        ),
+        MergeMsg=False
+    )
+)  # 使用默认构造
+
+ClientUserConf: client.ClientUserConf = client.ClientUserConf()  # 使用默认构造
+Logger: Optional[Any] = None  # 类型为zap.SugaredLogger的等效物
+Cleanups: Dict[str, Callable[[contextlib.AbstractContextManager], Optional[Exception]]] = {}
+AppBuildInfo: AppInfo = AppInfo()
+
 SqliteDB = None
 
 
 def set_user_mac(user_mac_hash: str) -> None:
     """设置用户MAC地址哈希"""
-    with conf_lock:
+    with conf_mu:
         global user_info
         user_info.mac_hash = user_mac_hash
 
 
 def set_curr_summoner(summoner: Any) -> None:
     """设置当前召唤师信息"""
-    with conf_lock:
+    with conf_mu:
         global user_info
         user_info.summoner = summoner
 
 
 def get_user_info() -> UserInfo:
     """获取用户信息"""
-    with conf_lock:
+    with conf_mu:
         return user_info
 
 
@@ -181,7 +277,7 @@ def cleanup() -> None:
 
 def is_dev_mode() -> bool:
     """是否为开发模式"""
-    return get_env() == Mode.DEBUG
+    return get_env() == appConf.Mode.DEBUG
 
 
 def is_prod_mode() -> bool:
@@ -201,30 +297,30 @@ def get_env_mode() -> str:
 
 def is_env_mode_dev() -> bool:
     """环境变量中是否为开发模式"""
-    return get_env_mode() == Mode.DEBUG
+    return get_env_mode() == appConf.Mode.DEBUG
 
 
-def get_score_conf() -> CalcScoreConf:
+def get_score_conf() -> appConf.CalcScoreConf:
     """获取评分配置"""
-    with conf_lock:
+    with conf_mu:
         return Conf.calc_score
 
 
-def set_score_conf(score_conf: CalcScoreConf) -> None:
+def set_score_conf(score_conf: appConf.CalcScoreConf) -> None:
     """设置评分配置"""
-    with conf_lock:
+    with conf_mu:
         Conf.calc_score = score_conf
 
 
 def get_client_user_conf() -> ClientUserConf:
     """获取客户端用户配置"""
-    with conf_lock:
+    with conf_mu:
         return ClientUserConf
 
 
 def set_client_user_conf(cfg: dict) -> ClientUserConf:
     """设置客户端用户配置"""
-    with conf_lock:
+    with conf_mu:
         global ClientUserConf
 
         if "AutoAcceptGame" in cfg and cfg["AutoAcceptGame"] is not None:
@@ -268,5 +364,7 @@ def set_app_info(info: AppInfo) -> None:
 
 def set_cleanup(name: str, fn: Callable) -> None:
     """设置清理函数"""
-    global Cleanups
-    Cleanups[name] = fn
+    with cleanups_mu:
+        global Cleanups
+        Cleanups[name] = fn
+

@@ -8,10 +8,6 @@ from typing import Optional, List
 import json
 
 class ClientUserConf(BaseModel):
-    """
-    客户端用户配置模型
-    对应 Go 的 ClientUserConf 结构
-    """
     AutoAcceptGame: bool = True
     AutoPickChampID: int = 0
     AutoBanChampID: int = 0

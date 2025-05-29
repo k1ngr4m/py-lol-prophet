@@ -22,7 +22,6 @@ import global_conf.global_conf as global_vars
 from conf import client
 from conf.appConf import AppConf
 from conf.client import valid_client_user_conf
-from global_conf.global_conf import ClientUserConf
 from services.db.models.config import INIT_LOCAL_CLIENT_SQL, dataclass_json_encoder
 from services.lcu import common
 from pkg.os.admin.admin import must_run_with_admin
@@ -473,8 +472,9 @@ def init_app() -> Optional[Exception]:
         # 初始化用户信息
         init_user_info()
 
+        cfg = global_vars.Conf
         # 初始化日志
-        init_log(global_vars.Conf.app_name)
+        init_log(cfg.app_name)
 
         # 初始化控制台
         init_console()
