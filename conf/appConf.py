@@ -64,20 +64,54 @@ class CalcScoreConf(BaseModel):
     Enabled: bool = Field(default=False)
     GameMinDuration: int = Field(default=900)  # 允许计算战绩的最低游戏时长
     AllowQueueIDList: List[int] = Field(default_factory=list)  # 允许计算战绩的queueID
-    FirstBlood: Tuple[float, float]  # [击杀+,助攻+]
-    PentaKills: Tuple[float]  # 五杀
-    QuadraKills: Tuple[float]  # 四杀
-    TripleKills: Tuple[float]  # 三杀
-    JoinTeamRateRank: Tuple[float, float, float, float]  # 参团率排名
-    GoldEarnedRank: Tuple[float, float, float, float]  # 打钱排名
-    HurtRank: Tuple[float, float]  # 伤害排名
-    Money2hurtRateRank: Tuple[float, float]  # 金钱转换伤害比排名
-    VisionScoreRank: Tuple[float, float]  # 视野得分排名
-    MinionsKilled: List[Tuple[float, float]]  # 补兵 [ [补兵数,加分数] ]
-    KillRate: List[RateItemConf]  # 人头占比
-    HurtRate: List[RateItemConf]  # 伤害占比
-    AssistRate: List[RateItemConf]  # 助攻占比
-    AdjustKDA: Tuple[float, float]  # kda
+    FirstBlood: Tuple[float, float] = Field(default=(10,5)) # [击杀+,助攻+]
+    PentaKills: Tuple[float] = Field(default=(20,))
+    QuadraKills: Tuple[float] = Field(default=(10,)) # 四杀
+    TripleKills: Tuple[float] = Field(default=(5,))  # 三杀
+    JoinTeamRateRank: Tuple[float, float, float, float] = Field(default=(10,5,5,10))  # 参团率排名
+    GoldEarnedRank: Tuple[float, float, float, float] = Field(default=(10,5,5,10)) # 打钱排名
+    HurtRank: Tuple[float, float] = Field(default=(10,5)) # 伤害排名
+    Money2hurtRateRank: Tuple[float, float] = Field(default=(10,5)) # 金钱转换伤害比排名
+    VisionScoreRank: Tuple[float, float] = Field(default=(10,5))  # 视野得分排名
+    MinionsKilled: List[Tuple[float, float]] = Field(default=[
+            (10, 20),
+            (9, 10),
+            (8, 5),
+        ]) # 补兵 [ [补兵数,加分数] ]
+    KillRate: List[RateItemConf] = Field(default=[RateItemConf(
+                Limit=50,
+                ScoreConf=[
+                    (15, 40),
+                    (10, 20),
+                    (5, 10),]),RateItemConf(
+                Limit=40,
+                ScoreConf=[
+                    (15, 20),
+                    (10, 10),
+                    (5, 5),])]) # 人头占比
+    HurtRate: List[RateItemConf] = Field(default=[RateItemConf(
+                Limit=50,
+                ScoreConf=[
+                    (15, 40),
+                    (10, 20),
+                    (5, 10),]),RateItemConf(
+                Limit=40,
+                ScoreConf=[
+                    (15, 20),
+                    (10, 10),
+                    (5, 5),])]) # 伤害占比
+    AssistRate: List[RateItemConf] = Field(default=[RateItemConf(
+                Limit=50,
+                ScoreConf=[
+                    (15, 40),
+                    (10, 20),
+                    (5, 10),]),RateItemConf(
+                Limit=40,
+                ScoreConf=[
+                    (15, 20),
+                    (10, 10),
+                    (5, 5),])]) # 助攻占比
+    AdjustKDA: Tuple[float, float] =Field(default=(2,5))  # kda
     Horse: Tuple[
         HorseScoreConf,
         HorseScoreConf,
@@ -85,22 +119,27 @@ class CalcScoreConf(BaseModel):
         HorseScoreConf,
         HorseScoreConf,
         HorseScoreConf
-    ]  # 马匹名称
+    ] = Field(default=(HorseScoreConf(Score=180, Name="通天代"),
+            HorseScoreConf(Score=150, Name="小代"),
+            HorseScoreConf(Score=125, Name="上等马"),
+            HorseScoreConf(Score=105, Name="中等马"),
+            HorseScoreConf(Score=95, Name="下等马"),
+            HorseScoreConf(Score=0.0001, Name="牛马"),)) # 马匹名称
     MergeMsg: bool = Field(default=False)  # 是否合并消息为一条
 
 
 # 主配置模型
 class AppConf(BaseModel):
-    Mode: Mode = Field(default="prod", json_schema_extra={"env": "PROPHET_MODE"})
-    Log: LogConf = Field(default_factory=LogConf)
-    BuffApi: BuffApi()
-    CalcScore: CalcScoreConf()
-    AppName: str = Field(default="lol对局先知")
-    WebsiteTitle: str = Field(default="lol.buffge.com")
-    AdaptChatWebsiteTitle: str = Field(default="lol.buffge点康姆")
-    ProjectUrl: str = Field(default="github.com/real-web-world/hh-lol-prophet")
-    Otlp: OtlpConf = Field(default_factory=OtlpConf)
-    WebView: WebViewConf = Field(default_factory=WebViewConf)
+    mode: Mode = Field(default="prod", json_schema_extra={"env": "PROPHET_MODE"})
+    log: LogConf = Field(default_factory=LogConf)
+    buff_api: BuffApi = Field(default_factory=BuffApi)
+    calc_score: CalcScoreConf = Field(default_factory=CalcScoreConf)
+    app_name: str = Field(default="lol对局先知")
+    website_title: str = Field(default="lol.buffge.com")
+    adapt_Chat_website_title: str = Field(default="lol.buffge点康姆")
+    project_url: str = Field(default="github.com/real-web-world/hh-lol-prophet")
+    otlp: OtlpConf = Field(default_factory=OtlpConf)
+    web_view: WebViewConf = Field(default_factory=WebViewConf)
 
     class Config:
         # 允许使用字段名别名

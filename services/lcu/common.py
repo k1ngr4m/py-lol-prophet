@@ -108,7 +108,6 @@ def get_mac() -> int:
 
             # 补零到8字节并转为大端序整数
             padded_mac = mac_bytes.ljust(8, b'\x00')
-            print(f"Valid MAC found: {clean_mac} on {iface}")
             return int.from_bytes(padded_mac, 'big')
 
         except (KeyError, IndexError, ValueError):

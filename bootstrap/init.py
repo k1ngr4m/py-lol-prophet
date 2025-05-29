@@ -438,7 +438,7 @@ def init_lib() -> Optional[Exception]:
         如果发生错误则返回异常，否则返回None
     """
     # 设置时区
-    os.environ["TZ"] = global_vars.DEFAULT_TZ
+    os.environ["TZ"] = DEFAULT_TZ
 
     return None
 
