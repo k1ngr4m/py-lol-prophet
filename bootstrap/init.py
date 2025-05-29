@@ -42,9 +42,9 @@ LOCAL_CONF_FILE = "./config.json"
 def init_conf():
     """初始化配置"""
     # 加载环境变量
-    load_dotenv(LOCAL_CONF_FILE)
-    if os.path.exists(LOCAL_CONF_FILE):
-        load_dotenv(LOCAL_CONF_FILE, override=True)
+    load_dotenv(ENV_FILE)
+    if os.path.exists(ENV_LOCAL_FILE):
+        load_dotenv(ENV_LOCAL_FILE, override=True)
 
     global_vars.Conf = global_vars.DEFAULT_APP_CONF
     global_vars.ClientUserConf = global_vars.DEFAULT_CLIENT_USER_CONF
@@ -241,8 +241,8 @@ def init_client_conf():
 
                 # 解析并验证配置
                 config_data = json.loads(result[0])
-                if not valid_client_user_conf(config_data):
-                    raise ValueError("Invalid configuration format")
+                # if not valid_client_user_conf(config_data):
+                #     raise ValueError("Invalid configuration format")
 
                 # 设置全局配置
                 global_vars.CLIENT_USER_CONF = config_data
@@ -257,108 +257,108 @@ def init_client_conf():
             logging.critical("Please try deleting the configuration file and retrying")
         return False
 
-def init_db() -> Optional[Exception]:
-    """
-    初始化数据库
-
-    Returns:
-        如果发生错误则返回异常，否则返回None
-    """
-    try:
-        # 获取数据库路径
-        app_data_dir = os.path.join(os.path.expanduser("~"), "AppData", "Local", "hh-lol-prophet")
-        os.makedirs(app_data_dir, exist_ok=True)
-        db_path = os.path.join(app_data_dir, "config.db")
-
-        # 检查数据库文件是否存在
-        if not os.path.exists(db_path):
-            # 创建数据库
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-
-            # 创建配置表
-            cursor.execute('''
-            CREATE TABLE IF NOT EXISTS config (
-                k TEXT PRIMARY KEY,
-                v TEXT NOT NULL
-            )
-            ''')
-
-            # 插入默认配置
-            client_conf_json = json.dumps(global_vars.DEFAULT_CLIENT_USER_CONF.__dict__)
-            cursor.execute("INSERT INTO config (k, v) VALUES (?, ?)",
-                           ("local_client_conf", client_conf_json))
-
-            conn.commit()
-            conn.close()
-
-            # 使用默认配置
-            global_vars.ClientUserConf = global_vars.DEFAULT_CLIENT_USER_CONF
-        else:
-            # 读取配置
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-
-            # 查询配置
-            cursor.execute("SELECT v FROM config WHERE k = ?", ("local_client_conf",))
-            result = cursor.fetchone()
-
-            if result:
-                # 解析配置
-                try:
-                    client_conf_dict = json.loads(result[0])
-                    client_conf = global_vars.ClientUserConf
-
-                    # 更新配置
-                    for key, value in client_conf_dict.items():
-                        if hasattr(client_conf, key):
-                            setattr(client_conf, key, value)
-
-                    global_vars.ClientUserConf = client_conf
-                except json.JSONDecodeError:
-                    return Exception("本地配置解析错误")
-
-            conn.close()
-
-        # 创建数据库连接类
-        class SqliteDB:
-            def __init__(self, db_path):
-                self.db_path = db_path
-                self.conn = None
-
-            @contextmanager
-            def connection(self):
-                conn = sqlite3.connect(self.db_path)
-                try:
-                    yield conn
-                finally:
-                    conn.close()
-
-            def execute(self, sql, params=None):
-                with self.connection() as conn:
-                    cursor = conn.cursor()
-                    if params:
-                        cursor.execute(sql, params)
-                    else:
-                        cursor.execute(sql)
-                    conn.commit()
-                    return cursor
-
-            def query(self, sql, params=None):
-                with self.connection() as conn:
-                    cursor = conn.cursor()
-                    if params:
-                        cursor.execute(sql, params)
-                    else:
-                        cursor.execute(sql)
-                    return cursor.fetchall()
-
-        # 设置数据库连接
-        global_vars.SqliteDB = SqliteDB(db_path)
-
-        return None
-    except Exception as e:
-        return e
+# def init_db() -> Optional[Exception]:
+#     """
+#     初始化数据库
+#
+#     Returns:
+#         如果发生错误则返回异常，否则返回None
+#     """
+#     try:
+#         # 获取数据库路径
+#         app_data_dir = os.path.join(os.path.expanduser("~"), "AppData", "Local", "hh-lol-prophet")
+#         os.makedirs(app_data_dir, exist_ok=True)
+#         db_path = os.path.join(app_data_dir, "config.db")
+#
+#         # 检查数据库文件是否存在
+#         if not os.path.exists(db_path):
+#             # 创建数据库
+#             conn = sqlite3.connect(db_path)
+#             cursor = conn.cursor()
+#
+#             # 创建配置表
+#             cursor.execute('''
+#             CREATE TABLE IF NOT EXISTS config (
+#                 k TEXT PRIMARY KEY,
+#                 v TEXT NOT NULL
+#             )
+#             ''')
+#
+#             # 插入默认配置
+#             client_conf_json = json.dumps(global_vars.DEFAULT_CLIENT_USER_CONF.__dict__)
+#             cursor.execute("INSERT INTO config (k, v) VALUES (?, ?)",
+#                            ("local_client_conf", client_conf_json))
+#
+#             conn.commit()
+#             conn.close()
+#
+#             # 使用默认配置
+#             global_vars.ClientUserConf = global_vars.DEFAULT_CLIENT_USER_CONF
+#         else:
+#             # 读取配置
+#             conn = sqlite3.connect(db_path)
+#             cursor = conn.cursor()
+#
+#             # 查询配置
+#             cursor.execute("SELECT v FROM config WHERE k = ?", ("local_client_conf",))
+#             result = cursor.fetchone()
+#
+#             if result:
+#                 # 解析配置
+#                 try:
+#                     client_conf_dict = json.loads(result[0])
+#                     client_conf = global_vars.ClientUserConf
+#
+#                     # 更新配置
+#                     for key, value in client_conf_dict.items():
+#                         if hasattr(client_conf, key):
+#                             setattr(client_conf, key, value)
+#
+#                     global_vars.ClientUserConf = client_conf
+#                 except json.JSONDecodeError:
+#                     return Exception("本地配置解析错误")
+#
+#             conn.close()
+#
+#         # 创建数据库连接类
+#         class SqliteDB:
+#             def __init__(self, db_path):
+#                 self.db_path = db_path
+#                 self.conn = None
+#
+#             @contextmanager
+#             def connection(self):
+#                 conn = sqlite3.connect(self.db_path)
+#                 try:
+#                     yield conn
+#                 finally:
+#                     conn.close()
+#
+#             def execute(self, sql, params=None):
+#                 with self.connection() as conn:
+#                     cursor = conn.cursor()
+#                     if params:
+#                         cursor.execute(sql, params)
+#                     else:
+#                         cursor.execute(sql)
+#                     conn.commit()
+#                     return cursor
+#
+#             def query(self, sql, params=None):
+#                 with self.connection() as conn:
+#                     cursor = conn.cursor()
+#                     if params:
+#                         cursor.execute(sql, params)
+#                     else:
+#                         cursor.execute(sql)
+#                     return cursor.fetchall()
+#
+#         # 设置数据库连接
+#         global_vars.SqliteDB = SqliteDB(db_path)
+#
+#         return None
+#     except Exception as e:
+#         return e
 
 
 def init_log(app_name: str):
@@ -415,7 +415,6 @@ def init_user_info():
     # 计算MAC地址哈希
     mac_bytes = mac.to_bytes(8, byteorder='little')
     mac_hash = hashlib.sha256(mac_bytes).hexdigest()
-
     # 设置用户MAC地址哈希
     global_vars.set_user_mac(mac_hash)
 

@@ -73,12 +73,48 @@ def get_mac() -> int:
     Returns:
         MAC地址的数字表示，如果获取失败则返回0
     """
-    try:
-        import uuid
-        mac = uuid.getnode()
-        return mac
-    except Exception:
-        return 0
+    import netifaces
+    import re
+
+    # 优先尝试物理网卡
+    physical_interfaces = ['eth0', 'en0', 'en1', 'enp0s3', 'wlan0']
+
+    for iface in physical_interfaces + netifaces.interfaces():
+        try:
+            addrs = netifaces.ifaddresses(iface)
+            # 检查是否有链路层地址
+            if netifaces.AF_LINK not in addrs:
+                continue
+
+            link_addrs = addrs[netifaces.AF_LINK]
+            if not link_addrs:
+                continue
+
+            mac_str = link_addrs[0].get('addr', '')
+            # 验证MAC地址格式
+            if not mac_str or len(mac_str) < 12:
+                continue
+
+            # 清理MAC地址（移除分隔符）
+            clean_mac = re.sub(r'[^0-9A-Fa-f]', '', mac_str)
+            if len(clean_mac) != 12:  # 标准MAC是6字节=12字符
+                continue
+
+            mac_bytes = bytes.fromhex(clean_mac)
+
+            # 跳过本地管理地址（第1字节第2位为1）
+            if mac_bytes[0] & 0x02 == 0x02:
+                continue
+
+            # 补零到8字节并转为大端序整数
+            padded_mac = mac_bytes.ljust(8, b'\x00')
+            print(f"Valid MAC found: {clean_mac} on {iface}")
+            return int.from_bytes(padded_mac, 'big')
+
+        except (KeyError, IndexError, ValueError):
+            continue
+
+    return 0
 
 
 def in_array(item: T, array: List[T]) -> bool:
