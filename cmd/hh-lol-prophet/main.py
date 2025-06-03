@@ -14,7 +14,7 @@ from typing import Optional
 import version as version
 import global_conf.global_conf as global_conf
 from bootstrap.init import init_app
-from prophet import Prophet
+from prophet import Prophet, new_prophet
 import services.logger.logger as logger
 import services.lcu.common as common
 from services.buffApi import update
@@ -104,7 +104,7 @@ def main():
     # threading.Thread(target=check_update).start()
 
     # 创建并运行Prophet
-    prophet = Prophet()
+    prophet = new_prophet()
     err = prophet.run()
     if err:
         print(f"运行失败:{err}")

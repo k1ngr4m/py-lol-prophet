@@ -465,15 +465,6 @@ def init_global():
     # 由于该功能已被废弃，这里不实现
     pass
 
-# def new_resource(mode, app_name, user_info):
-#     attributes = {
-#         "service.name": app_name,
-#         "service.version": APP_VERSION,
-#         "environment": mode,
-#         "user.id": user_info.id,
-#         "user.name": user_info.name
-#     }
-#     return Resource.create(attributes)
 
 
 def new_resource(mode, app_name, user_info):

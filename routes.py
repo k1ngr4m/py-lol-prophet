@@ -1,115 +1,62 @@
-"""
-路由模块，对应原Go代码中的routes.go
-"""
+from fastapi import Request, APIRouter, Depends, FastAPI
 
-from flask import Flask, request, jsonify, send_from_directory
-import os
-import json
-from typing import Dict, Any, Callable
+from api import Api
 
 
-class Router:
-    """路由管理器"""
+def register_routes(app: FastAPI, api: Api):
+    # 1. “test” 路由，支持所有 HTTP 方法
+    @app.api_route(
+        "/test",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    )
+    async def test_handler(request: Request):
+        return await api.DevHand(request)
 
-    def __init__(self, app: Flask):
-        """
-        初始化路由管理器
+    # 2. 创建 /v1 路由组
+    v1 = APIRouter(prefix="/v1")
 
-        Args:
-            app: Flask应用实例
-        """
-        self.app = app
-        self.routes = {}
+    # 2.1 查询用户马匹信息（带中间件 ProphetActiveMid）
+    @v1.post(
+        "/horse/queryBySummonerName",
+        dependencies=[Depends(api.ProphetActiveMid)],
+    )
+    async def query_horse_by_summoner(request: Request):
+        return await api.QueryHorseBySummonerName(request)
 
-    def register_routes(self):
-        """注册所有路由"""
-        # API路由
-        self.app.route('/api/version')(self.handle_version)
-        self.app.route('/api/config', methods=['GET'])(self.handle_get_config)
-        self.app.route('/api/config', methods=['POST'])(self.handle_update_config)
-        self.app.route('/api/game/accept', methods=['POST'])(self.handle_accept_game)
-        self.app.route('/api/game/score', methods=['GET'])(self.handle_get_game_score)
+    # 2.2 获取所有配置
+    @v1.post("/config/getAll")
+    async def get_all_conf(request: Request):
+        return await api.GetAllConf(request)
 
-        # 静态文件路由
-        @self.app.route('/')
-        def index():
-            return send_from_directory(self.get_static_dir(), 'index.html')
+    # 2.3 更新配置
+    @v1.post("/config/update")
+    async def update_client_conf(request: Request):
+        return await api.UpdateClientConf(request)
 
-        @self.app.route('/<path:path>')
-        def static_files(path):
-            return send_from_directory(self.get_static_dir(), path)
+    # 2.4 获取 LCU 认证信息
+    @v1.post("/lcu/getAuthInfo")
+    async def get_lcu_auth_info(request: Request):
+        return await api.GetLcuAuthInfo(request)
 
-    def get_static_dir(self) -> str:
-        """获取静态文件目录"""
-        # 获取当前脚本所在目录
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        # 静态文件目录
-        static_dir = os.path.join(current_dir, '..', 'static')
-        return os.path.abspath(static_dir)
+    # 2.5 获取 App 信息
+    @v1.post("/app/getInfo")
+    async def get_app_info(request: Request):
+        return await api.GetAppInfo(request)
 
-    def set_handler(self, route: str, handler: Callable):
-        """
-        设置路由处理器
+    # 2.6 复制马匹信息到剪切板
+    @v1.post("/horse/copyHorseMsgToClipBoard")
+    async def copy_horse_msg(request: Request):
+        return await api.CopyHorseMsgToClipBoard(request)
 
-        Args:
-            route: 路由路径
-            handler: 处理函数
-        """
-        self.routes[route] = handler
+    # 2.7 LCU Proxy（支持所有 HTTP 方法，使用 Catch‐all 路径参数）
+    @v1.api_route(
+        "/lcu/proxy/{full_path:path}",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    )
+    async def lcu_proxy_handler(request: Request, full_path: str):
+        # 如果 api.LcuProxy 需要知道原始请求的路径，可以从 `full_path` 里取
+        # 也可以直接把 Request 对象传进去，让后端自己从 request.url.path 里解析
+        return await api.LcuProxy(request)
 
-    def handle_version(self):
-        """处理版本请求"""
-        import version
-        return jsonify({
-            'version': version.APP_VERSION,
-            'commit': version.COMMIT,
-            'buildTime': version.BUILD_TIME
-        })
-
-    def handle_get_config(self):
-        """处理获取配置请求"""
-        from global_conf.global_conf import get_client_user_conf
-        config = get_client_user_conf()
-        return jsonify(config.__dict__)
-
-    def handle_update_config(self):
-        """处理更新配置请求"""
-        from global_conf.global_conf import set_client_user_conf
-        try:
-            config = request.json
-            updated_config = set_client_user_conf(config)
-            return jsonify({
-                'status': 'success',
-                'data': updated_config.__dict__
-            })
-        except Exception as e:
-            return jsonify({
-                'status': 'error',
-                'message': str(e)
-            }), 400
-
-    def handle_accept_game(self):
-        """处理接受游戏请求"""
-        if 'accept_game' in self.routes:
-            result = self.routes['accept_game']()
-            return jsonify({
-                'status': 'success',
-                'data': result
-            })
-        return jsonify({
-            'status': 'error',
-            'message': '功能未实现'
-        }), 501
-
-    def handle_get_game_score(self):
-        """处理获取游戏评分请求"""
-        if 'get_game_score' in self.routes:
-            result = self.routes['get_game_score']()
-            return jsonify({
-                'status': 'success',
-                'data': result
-            })
-        return jsonify({
-            'status': 'error',
-            'message': '功能未实现'
-        }), 501
+    # 最后把 v1 注册到主应用
+    app.include_router(v1)

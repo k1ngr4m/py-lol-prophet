@@ -11,6 +11,7 @@ import json
 import re
 from typing import Any, List, Dict, Optional, TypeVar, Callable, Union
 from services.lcu import adapt
+from services.lcu.models.api import SummonerProfileData, Summoner
 from services.lcu.windows import get_lol_client_api_info_adapt
 
 # 常量定义
@@ -279,3 +280,34 @@ class ErrLolProcessNotFound(LolProcessError):
     """当未找到英雄联盟进程时引发的错误"""
     def __init__(self):
         super().__init__("未找到lol进程")
+
+
+def convert_curr_summoner_to_summoner(curr_summoner: SummonerProfileData) -> Summoner:
+    """将 SummonerProfileData 转换为 Summoner 对象"""
+    # 从 lol 字典中提取等级信息，并转换为整数
+    summoner_level = 0
+    if curr_summoner.lol and 'Level' in curr_summoner.lol:
+        try:
+            summoner_level = int(curr_summoner.lol['Level'])
+        except (ValueError, TypeError):
+            # 转换失败时使用默认值 0
+            pass
+
+    return Summoner(
+        account_id=curr_summoner.summoner_id,
+        game_name=curr_summoner.game_name,
+        tag_line=curr_summoner.game_tag,
+        display_name=curr_summoner.name,
+        internal_name=curr_summoner.name,
+        name_change_flag=False,
+        percent_complete_for_next_level=0,
+        privacy=None,
+        profile_icon_id=curr_summoner.icon,
+        puuid=curr_summoner.puuid,
+        reroll_points=None,
+        summoner_id=curr_summoner.summoner_id,
+        summoner_level=summoner_level,
+        unnamed=False,
+        xp_since_last_level=0,
+        xp_until_next_level=0
+    )

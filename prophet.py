@@ -10,7 +10,6 @@ from typing import Optional, Callable, Any
 import version
 from option import ApplyOption, WithDebug, WithProd
 from services.lcu import common, client
-from services.lcu.client import Client
 from services.lcu.models.api import SummonerProfileData, ChampSelectSessionInfo
 from services.lcu import reverse_proxy
 from services.lcu import api
@@ -22,6 +21,10 @@ import global_conf.global_conf as global_vars
 import services.logger.logger as logger
 import websocket
 from services.lcu.ws import SUBSCRIBE_ALL_EVENT_MSG, ON_JSON_API_EVENT_PREFIX_LEN, WS_EVT_GAME_FLOW_CHANGED, WS_EVT_CHAMP_SELECT_UPDATE_SESSION
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from routes import register_routes
 
 
 class CancellationContext:
@@ -56,7 +59,6 @@ default_opts = Options()
 allow_origin_regex = re.compile(r".+?\.buffge\.com(:\d+)?$")
 
 
-# 3. Prophet 对应的 Python 类
 class Prophet:
     def __init__(self,
                  ctx: Optional[Any] = None,
@@ -130,7 +132,7 @@ class Prophet:
                 if err:
                     logger.debug("初始化 LCU RP 失败: %s", err)
 
-                # 初始化游戏流程监控（略去实现）
+                # 初始化游戏流程监控
                 try:
                     self.init_game_flow_monitor(port, token)
                 except Exception as err:
@@ -342,10 +344,72 @@ class Prophet:
         return None
 
     def capture_start_message(self):
-        pass
+        logger.info(global_vars.Conf.app_name + "已启动")
 
     def init_gin(self):
-        pass
+        # 确保 api 已初始化
+        if self.api is None:
+            raise RuntimeError("Api instance is not initialized")
+
+        # 1. 根据 debug 标志创建 FastAPI 应用
+        debug = bool(self.opts.debug)
+        app = FastAPI(debug=debug)
+
+        # 2. 如果 enable_pprof 为 True，预留挂载 Profiling 中间件的入口
+        if self.opts.enable_pprof:
+            # 注意：starlette 并不自带 profiling 中间件，如果需要，可自行安装并替换下面的占位符
+            try:
+                from starlette.middleware.profiling import ProfilingMiddleware
+                app.add_middleware(ProfilingMiddleware, profiles_dir="./profiles")
+            except ImportError:
+                logger.warning("ProfilingMiddleware 未找到，请确保已安装相应库，否则此处不会生效。")
+
+        # 3. 配置 CORS
+        cors_kwargs = {
+            "allow_methods": ["*"],
+            "allow_headers": ["*"],
+            "expose_headers": ["*"],
+            "allow_credentials": True,
+            "max_age": 12 * 60 * 60,  # 12 小时，单位为秒
+        }
+
+        if global_vars.is_dev_mode():
+            cors_kwargs["allow_origins"] = ["*"]
+        else:
+            cors_kwargs["allow_origin_regex"] = allow_origin_regex.pattern
+
+        app.add_middleware(CORSMiddleware, **cors_kwargs)
+
+
+        @app.middleware("http")
+        async def recovery_and_log(request: Request, call_next):
+            try:
+                response = await call_next(request)
+                return response
+            except Exception as exc:
+                logger.error("Unhandled exception in request:", exc_info=exc)
+                from fastapi.responses import PlainTextResponse
+                return PlainTextResponse("Internal Server Error", status_code=500)
+
+        # 5. 注册路由
+        register_routes(app, self.api)
+
+        # 6. 创建并保存 Uvicorn 服务器实例（未运行）
+        host_str, port_str = self.opts.http_addr.split(":")
+        host = host_str.strip()
+        port = int(port_str.strip())
+
+        uvicorn_config = uvicorn.Config(
+            app,
+            host=host,
+            port=port,
+            log_level="debug" if debug else "info",
+        )
+        server = uvicorn.Server(uvicorn_config)
+
+        # 7. 将 app 与 server 保存在实例属性中
+        self.app = app
+        self.http_srv = server
 
     def init_web_view(self):
         pass
@@ -357,6 +421,7 @@ class Prophet:
         # 启动后台线程
         threading.Thread(target=self.monitor_start, daemon=True).start()
         threading.Thread(target=self.capture_start_message, daemon=True).start()
+
         # 初始化 Web 接口服务
         self.init_gin()
 
@@ -375,6 +440,7 @@ def new_prophet(*apply_options: ApplyOption) -> Prophet:
     ctx = CancellationContext()
     cancel = ctx.cancel
 
+    # 创建 Prophet 实例
     p = Prophet(
         ctx=ctx,
         cancel=cancel,
@@ -383,15 +449,18 @@ def new_prophet(*apply_options: ApplyOption) -> Prophet:
         game_state=GameState.NONE
     )
 
+    # 设置开发/生产模式
     if global_vars.is_dev_mode():
         apply_options = (*apply_options, WithDebug())
     else:
         apply_options = (*apply_options, WithProd())
 
-    p.api = Api(p)
-
+    # 应用选项
     for fn in apply_options:
         fn(p.opts)
+
+    # 关键：在返回之前创建并设置 Api 实例
+    p.api = Api(p)  # 确保 Api 被正确初始化
 
     return p
 
