@@ -7,18 +7,20 @@ import ssl
 from enum import Enum
 from typing import Optional, Callable, Any
 
+import version
 from option import ApplyOption, WithDebug, WithProd
 from services.lcu import common, client
 from services.lcu.client import Client
-from services.lcu.models.api import SummonerProfileData
+from services.lcu.models.api import SummonerProfileData, ChampSelectSessionInfo
 from services.lcu import reverse_proxy
 from services.lcu import api
+from services.lcu.api import ChampSelectPatchType, pick_champion, pre_pick_champion, ban_champion
 from services.lcu.models.lol import GameFlow as LolGameFlow
 from services.lcu.reverse_proxy import RP
 from api import Api
 import global_conf.global_conf as global_vars
 import services.logger.logger as logger
-import websocket  # 需要安装：pip install websocket-client
+import websocket
 from services.lcu.ws import SUBSCRIBE_ALL_EVENT_MSG, ON_JSON_API_EVENT_PREFIX_LEN, WS_EVT_GAME_FLOW_CHANGED, WS_EVT_CHAMP_SELECT_UPDATE_SESSION
 
 
@@ -112,6 +114,7 @@ class Prophet:
                 try:
                     # 获取 LCU 信息
                     port, token = common.get_lol_client_api_info()
+                    print(port,token)
                 except Exception as err:
                     # 如果不是 "LOL 未运行" 错误，就打印警告
                     if not isinstance(err, common.ErrLolProcessNotFound):
@@ -279,6 +282,93 @@ class Prophet:
         else:
             self.update_game_state(GameState.OTHER)
 
+    def on_champ_select_session_update(self, session_info: ChampSelectSessionInfo) -> Optional[Exception]:
+        user_pick_action_id = None
+        user_ban_action_id = None
+        pick_champion_id = 0
+        is_self_pick = False
+        is_self_ban = False
+        pick_is_in_progress = False
+        ban_is_in_progress = False
+
+        ally_pre_pick_champion_ids = set()
+
+        if not session_info.actions:
+            return None
+
+        for actions in session_info.actions:
+            for action in actions:
+                if action.is_ally_action and action.type == ChampSelectPatchType.PICK and action.champion_id > 0:
+                    ally_pre_pick_champion_ids.add(action.champion_id)
+
+                if action.actor_cell_id != session_info.local_player_cell_id:
+                    continue
+
+                if action.type == ChampSelectPatchType.PICK:
+                    is_self_pick = True
+                    user_pick_action_id = action.id
+                    pick_champion_id = action.champion_id
+                    pick_is_in_progress = action.is_in_progress
+                elif action.type == ChampSelectPatchType.BAN:
+                    is_self_ban = True
+                    user_ban_action_id = action.id
+                    ban_is_in_progress = action.is_in_progress
+
+                break  # 只处理一个匹配的 action（等价于 Go 的 break）
+
+        client_cfg = global_vars.get_client_user_conf()
+
+        if getattr(client_cfg, 'auto_pick_champ_id', 0) > 0 and is_self_pick:
+            champ_id = client_cfg.auto_pick_champ_id
+            if pick_is_in_progress:
+                try:
+                    pick_champion(champ_id, user_pick_action_id)
+                except Exception as e:
+                    logger.warning(f"自动锁定失败: {e}")
+                    # elif pick_champion_id == 0:
+                try:
+                    pre_pick_champion(champ_id, user_pick_action_id)
+                except Exception as e:
+                    logger.warning(f"预选英雄失败: {e}")
+
+                    if getattr(client_cfg, 'auto_ban_champ_id', 0) > 0 and is_self_ban and ban_is_in_progress:
+                        champ_id = client_cfg.auto_ban_champ_id
+                    if champ_id not in ally_pre_pick_champion_ids:
+                        try:
+                            ban_champion(champ_id, user_ban_action_id)
+                        except Exception as e:
+                            logger.warning(f"自动禁用失败: {e}")
+
+        return None
+
+    def capture_start_message(self):
+        pass
+
+    def init_gin(self):
+        pass
+
+    def init_web_view(self):
+        pass
+
+    def notify_quit(self):
+        pass
+
+    def run(self):
+        # 启动后台线程
+        threading.Thread(target=self.monitor_start, daemon=True).start()
+        threading.Thread(target=self.capture_start_message, daemon=True).start()
+        # 初始化 Web 接口服务
+        self.init_gin()
+
+        # 初始化 WebView（界面服务）
+        threading.Thread(target=self.init_web_view, daemon=True).start()
+        # 打印启动信息
+        logger.info(
+            f"{global_vars.Conf.app_name} 已启动 v{version.APP_VERSION} -- {global_vars.Conf.website_title}"
+        )
+
+        # 等待退出（阻塞主线程）
+        return self.notify_quit()
 
 
 def new_prophet(*apply_options: ApplyOption) -> Prophet:

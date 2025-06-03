@@ -1,11 +1,9 @@
 from typing import Dict
 
-from prophet import Prophet
-
 
 class Api:
     def __init__(self, prophet: 'Prophet'):
-        self.p = prophet  # 持有对父Prophet实例的引用
+        self.p = prophet  # 用字符串避免循环导入
 
 class SummonerNameReq:
     def __init__(self, summoner_name: str = ""):
