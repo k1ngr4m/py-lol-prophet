@@ -11,6 +11,7 @@ import json
 import re
 from typing import Any, List, Dict, Optional, TypeVar, Callable, Union
 from services.lcu import adapt
+from services.lcu.windows import get_lol_client_api_info_adapt
 
 # 常量定义
 HTTP_SCHEME = "https"
@@ -130,26 +131,8 @@ def in_array(item: T, array: List[T]) -> bool:
     return item in array
 
 def get_lol_client_api_info():
-    """
-    从 lockfile 获取 LCU 客户端端口和token
-    示例 lockfile 内容: 1234 abcdefghijklmnopq
-    """
-    lockfile_path = os.path.expanduser("~/AppData/Local/Programs/Riot Games/League of Legends/lockfile")
-    if not os.path.exists(lockfile_path):
-        raise FileNotFoundError("找不到 lockfile，请确认 LOL 是否启动")
+    return get_lol_client_api_info_adapt()
 
-    with open(lockfile_path, "r", encoding="utf-8") as f:
-        content = f.read().strip()
-
-    parts = content.split(":")
-    if len(parts) < 5:
-        raise ValueError("lockfile 格式不正确")
-
-    port = int(parts[2])
-    token = parts[3]
-    print(port)
-    return port, token
-    # return adapt.get_lol_client_api_info_adapt()
 
 def compare_version(version1: str, version2: str) -> int:
     """
@@ -288,3 +271,11 @@ def generate_client_api_url(port: int, token: str) -> str:
 def generate_client_ws_url(port: int) -> str:
     """生成 LCU WebSocket 地址"""
     return f"{WS_SCHEME}://{HOST}:{port}"
+
+class LolProcessError(Exception):
+    """与英雄联盟进程相关的错误"""
+
+class ErrLolProcessNotFound(LolProcessError):
+    """当未找到英雄联盟进程时引发的错误"""
+    def __init__(self):
+        super().__init__("未找到lol进程")

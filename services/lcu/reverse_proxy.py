@@ -1,180 +1,129 @@
-"""
-反向代理模块，对应原Go代码中的reverseProxy.go
-"""
+# reverse_proxy.py
 
-import http.server
-import socketserver
-import urllib.request
-import urllib.error
-import urllib.parse
-import threading
-from typing import Dict, Optional, Tuple, Callable
+import ssl
+from urllib.parse import urljoin
 
-class ReverseProxyHandler(http.server.BaseHTTPRequestHandler):
-    """反向代理处理器"""
-    
-    # 目标服务器URL
-    target_url = ""
-    
-    # 请求处理器
-    request_handler = None
-    
-    # 响应处理器
-    response_handler = None
-    
-    def do_GET(self):
-        """处理GET请求"""
-        self._handle_request("GET")
-    
-    def do_POST(self):
-        """处理POST请求"""
-        self._handle_request("POST")
-    
-    def do_PUT(self):
-        """处理PUT请求"""
-        self._handle_request("PUT")
-    
-    def do_DELETE(self):
-        """处理DELETE请求"""
-        self._handle_request("DELETE")
-    
-    def do_OPTIONS(self):
-        """处理OPTIONS请求"""
-        self._handle_request("OPTIONS")
-    
-    def _handle_request(self, method: str):
-        """处理HTTP请求"""
-        target = self.target_url + self.path
-        
-        # 读取请求内容
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length) if content_length > 0 else None
-        
-        # 构建请求
-        headers = {}
-        for key, value in self.headers.items():
-            if key.lower() not in ('host', 'content-length'):
-                headers[key] = value
-        
-        # 调用请求处理器
-        if self.request_handler:
-            target, method, headers, body = self.request_handler(target, method, headers, body)
-        
-        # 创建请求
-        req = urllib.request.Request(
-            url=target,
-            data=body,
-            headers=headers,
-            method=method
-        )
-        
-        try:
-            # 发送请求
-            with urllib.request.urlopen(req) as response:
-                # 获取响应
-                status_code = response.status
-                response_headers = response.headers
-                response_body = response.read()
-                
-                # 调用响应处理器
-                if self.response_handler:
-                    status_code, response_headers, response_body = self.response_handler(
-                        status_code, dict(response_headers), response_body
-                    )
-                
-                # 发送响应
-                self.send_response(status_code)
-                
-                # 设置响应头
-                for key, value in response_headers.items():
-                    if key.lower() not in ('server', 'date', 'transfer-encoding'):
-                        self.send_header(key, value)
-                
-                self.end_headers()
-                
-                # 发送响应体
-                if response_body:
-                    self.wfile.write(response_body)
-                
-        except urllib.error.HTTPError as e:
-            self.send_response(e.code)
-            for key, value in e.headers.items():
-                if key.lower() not in ('server', 'date', 'transfer-encoding'):
-                    self.send_header(key, value)
-            self.end_headers()
-            if e.fp:
-                self.wfile.write(e.fp.read())
-        
-        except Exception as e:
-            self.send_response(500)
-            self.end_headers()
-            self.wfile.write(str(e).encode('utf-8'))
-    
-    def log_message(self, format, *args):
-        """重写日志方法，避免输出到控制台"""
-        pass
+import requests
+from requests.exceptions import RequestException
 
-class ReverseProxy:
-    """反向代理服务器"""
-    
-    def __init__(self, host: str = "127.0.0.1", port: int = 8000, target_url: str = ""):
+
+def generate_client_api_url(port: int, token: str) -> str:
+    """
+    生成 LCU API 的 base URL：
+        https://riot:<token>@127.0.0.1:<port>
+    这样后续的 requests 会自动带上 Basic Auth。
+    """
+    return f"https://riot:{token}@127.0.0.1:{port}"
+
+
+class RP:
+    """
+    一个 WSGI 风格的反向代理 (Reverse Proxy)。它会把传入的 HTTP 请求透传到
+    LCU 客户端 API，然后将 LCU 的响应再返回给原调用方。
+
+    用法示例（以 WSGI 服务器为例）：
+        from wsgiref.simple_server import make_server
+        from reverse_proxy import RP
+
+        rp_app = RP(port=你的LCULoginPort, token=你的LCUToken)
+        server = make_server('127.0.0.1', 5000, rp_app)
+        server.serve_forever()
+
+    此时，访问 http://127.0.0.1:5000/<LCU 路径> 会被反向代理到
+    https://riot:<token>@127.0.0.1:<port>/<LCU 路径>。
+    """
+
+    def __init__(self, port: int, token: str):
         """
-        初始化反向代理服务器
-        
-        Args:
-            host: 监听主机
-            port: 监听端口
-            target_url: 目标服务器URL
+        :param port: LCU 返回的本地端口号
+        :param token: LCU 返回的 Basic Auth token
         """
-        self.host = host
         self.port = port
-        self.target_url = target_url
-        self.server = None
-        self.server_thread = None
-        
-        # 创建处理器类
-        handler_class = type('CustomReverseProxyHandler', (ReverseProxyHandler,), {
-            'target_url': target_url,
-            'request_handler': None,
-            'response_handler': None
-        })
-        
-        self.handler_class = handler_class
-    
-    def set_request_handler(self, handler: Callable[[str, str, Dict, Optional[bytes]], Tuple[str, str, Dict, Optional[bytes]]]):
+        self.token = token
+        self.base_url = generate_client_api_url(port, token)
+
+        # 使用 requests.Session 复用连接，关闭证书验证 (InsecureSkipVerify)
+        self._session = requests.Session()
+        self._session.verify = False  # 对应 Go 中 tls.Config{InsecureSkipVerify: true}
+
+    def __call__(self, environ, start_response):
         """
-        设置请求处理器
-        
-        Args:
-            handler: 请求处理函数，接收(target_url, method, headers, body)，返回修改后的值
+        使 RP 实例可作为 WSGI 应用使用。会把传入的 WSGI environ 解析成 HTTP 请求，
+        再用 requests 转发到 LCU，并将响应写回 WSGI start_response。
         """
-        self.handler_class.request_handler = handler
-    
-    def set_response_handler(self, handler: Callable[[int, Dict, bytes], Tuple[int, Dict, bytes]]):
-        """
-        设置响应处理器
-        
-        Args:
-            handler: 响应处理函数，接收(status_code, headers, body)，返回修改后的值
-        """
-        self.handler_class.response_handler = handler
-    
-    def start(self):
-        """启动反向代理服务器"""
-        if self.server:
-            return
-        
-        self.server = socketserver.ThreadingTCPServer((self.host, self.port), self.handler_class)
-        
-        def run_server():
-            self.server.serve_forever()
-        
-        self.server_thread = threading.Thread(target=run_server, daemon=True)
-        self.server_thread.start()
-    
-    def stop(self):
-        """停止反向代理服务器"""
-        if self.server:
-            self.server.shutdown()
-            self.server = None
-            self.server_thread = None
+        # 1. 从 WSGI environ 中提取请求方法、路径、查询字符串
+        method = environ.get("REQUEST_METHOD", "GET")
+        path = environ.get("PATH_INFO", "")
+        query = environ.get("QUERY_STRING", "")
+        # 构造完整的目标 URL
+        # NOTE: urljoin 只会在 path 以 / 开头时拼接 base_url，否则可能丢失前缀
+        # 所以，我们用简单的字符串拼接：
+        if query:
+            url = f"{self.base_url}{path}?{query}"
+        else:
+            url = f"{self.base_url}{path}"
+
+        # 2. 收集要转发的 headers（除了 X-Forwarded-For，我们删掉它）
+        forward_headers = {}
+        for key, value in environ.items():
+            if not key.startswith("HTTP_"):
+                continue
+            header_name = key[5:].replace("_", "-").title()
+            if header_name.lower() == "x-forwarded-for":
+                # 跳过它，等同于 Go 中的 `req.Header["X-Forwarded-For"] = nil`
+                continue
+            forward_headers[header_name] = value
+
+        # 3. CONTENT_TYPE 和 CONTENT_LENGTH 也要单独处理
+        if "CONTENT_TYPE" in environ:
+            forward_headers["Content-Type"] = environ["CONTENT_TYPE"]
+        if "CONTENT_LENGTH" in environ:
+            forward_headers["Content-Length"] = environ["CONTENT_LENGTH"]
+
+        # 4. 读取请求 body（如果有的话）
+        try:
+            length = int(environ.get("CONTENT_LENGTH", "0") or "0")
+        except ValueError:
+            length = 0
+
+        if length > 0:
+            body = environ["wsgi.input"].read(length)
+        else:
+            body = None
+
+        # 5. 发起到 LCU 的请求
+        try:
+            resp = self._session.request(
+                method=method,
+                url=url,
+                headers=forward_headers,
+                data=body,
+                timeout=30,
+            )
+        except RequestException as e:
+            # 如果请求失败，返回 502 Bad Gateway
+            status = "502 Bad Gateway"
+            response_headers = [("Content-Type", "text/plain; charset=utf-8")]
+            start_response(status, response_headers)
+            return [f"Reverse proxy error: {e}".encode("utf-8")]
+
+        # 6. 准备响应
+        status = f"{resp.status_code} {resp.reason}"
+        # WSGI 要求 headers 是 List[Tuple[str, str]]
+        response_headers = []
+        for k, v in resp.headers.items():
+            # 某些头可能会被 WSGI 删减，比如 Transfer-Encoding: chunked
+            # 这里只直接传递 LCU Response 中的所有头
+            response_headers.append((k, v))
+
+        start_response(status, response_headers)
+        return [resp.content]
+
+
+def new_rp(port: int, token: str) -> RP:
+    """
+    等价于 Go 中的 `NewRP(port int, token string) (*RP, error)`：
+    返回一个反向代理 RP 实例。如果 URL 无法解析，这里直接抛异常。
+    """
+    # 在 Python 里，我们通过 requests 和简单的字符串拼接实现，不会出现 URL 解析错误。
+    return RP(port, token)

@@ -20,8 +20,9 @@ import requests
 from dotenv import load_dotenv
 import global_conf.global_conf as global_vars
 from conf import client
-from conf.appConf import AppConf
+from conf.appConf import AppConf, Mode
 from conf.client import valid_client_user_conf
+from services.buffApi import update
 from services.db.models.config import INIT_LOCAL_CLIENT_SQL, dataclass_json_encoder
 from services.lcu import common
 from pkg.os.admin.admin import must_run_with_admin
@@ -32,6 +33,18 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 from conf.appConf import GET_REMOTE_CONF_API
+from contextlib import contextmanager
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+# from opentelemetry.exporter.otlp.proto.grpc.log_exporter import OTLPLogExporter
+from opentelemetry._logs import set_logger_provider
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from opentelemetry.sdk.resources import Resource, ResourceDetector
+from opentelemetry.semconv.resource import ResourceAttributes
+from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION
+
 
 DEFAULT_TZ = "Asia/Shanghai"
 ENV_FILE = ".env"
@@ -51,7 +64,7 @@ def init_conf():
     # 设置环境模式
     env_mode = global_vars.is_env_mode_dev()
     if env_mode:
-        global_vars.Conf.mode = env_mode
+        global_vars.Conf.mode = Mode.DEBUG
 
     remote_conf_queue = queue.Queue(maxsize=1)
 
@@ -425,9 +438,7 @@ def init_api(buff_api_cfg):
     Args:
         buff_api_cfg: API配置
     """
-    # 这里需要实现API的初始化
-    # 由于原Go代码中的API实现较为复杂，这里先留空
-    pass
+    update.init(buff_api_cfg.Timeout, buff_api_cfg.Timeout)
 
 
 def init_lib() -> Optional[Exception]:
@@ -454,6 +465,74 @@ def init_global():
     # 由于该功能已被废弃，这里不实现
     pass
 
+# def new_resource(mode, app_name, user_info):
+#     attributes = {
+#         "service.name": app_name,
+#         "service.version": APP_VERSION,
+#         "environment": mode,
+#         "user.id": user_info.id,
+#         "user.name": user_info.name
+#     }
+#     return Resource.create(attributes)
+
+
+def new_resource(mode, app_name, user_info):
+    # 创建自定义属性
+    custom_attributes = {
+        ResourceAttributes.SERVICE_NAME: app_name,
+        ResourceAttributes.SERVICE_VERSION: version.APP_VERSION,
+        "buff.userMac": user_info.mac_hash,
+        "buff.commitID": version.COMMIT,
+        "buff.mode": mode
+    }
+
+    # 合并默认资源和自定义属性
+    return Resource.create(custom_attributes).merge(Resource.get_empty())
+
+def init_otel(mode, app_name, log_conf, otlp_cfg, user_info):
+    try:
+        # 创建资源
+        res = new_resource(mode, app_name, user_info)
+
+        # 创建日志提供者
+        logger_provider = new_logger_provider(res, log_conf, otlp_cfg)
+
+        # 注册清理函数
+        global_vars.set_cleanup("otel_cleanup", lambda: logger_provider.shutdown())
+
+        # 设置全局日志提供者
+        set_logger_provider(logger_provider)
+
+        # 初始化日志检测
+        LoggingInstrumentor().instrument(
+            set_logging_format=True,
+            log_level=log_conf.Level
+        )
+
+        return None
+    except Exception as e:
+        return e
+
+
+def new_logger_provider(resource, log_conf, otlp_cfg):
+    # 创建 OTLP 导出器
+    exporter = OTLPLogExporter(
+        endpoint=otlp_cfg.EndpointUrl,
+        insecure=otlp_cfg.Token
+    )
+
+    # 创建日志提供者
+    logger_provider = LoggerProvider(
+        resource=resource,
+    )
+
+    # 添加批处理处理器
+    logger_provider.add_log_record_processor(
+        BatchLogRecordProcessor(exporter)
+    )
+
+    return logger_provider
+
 
 def init_app() -> Optional[Exception]:
     """
@@ -473,6 +552,18 @@ def init_app() -> Optional[Exception]:
         init_user_info()
 
         cfg = global_vars.Conf
+        # 初始化otel日志系统
+        # err = init_otel(
+        #     mode=cfg.mode,
+        #     app_name=cfg.app_name,
+        #     log_conf=cfg.log,
+        #     otlp_cfg=cfg.otlp,
+        #     user_info=global_vars.get_user_info()
+        # )
+
+        # if err:
+        #     return err
+
         # 初始化日志
         init_log(cfg.app_name)
 
@@ -485,10 +576,6 @@ def init_app() -> Optional[Exception]:
 
         # 初始化API
         init_api(global_vars.Conf.buff_api)
-
-        # 初始化数据库
-        # if err := init_db():
-        #     return err
 
         # 初始化全局设置
         init_global()

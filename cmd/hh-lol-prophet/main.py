@@ -17,6 +17,7 @@ from bootstrap.init import init_app
 from prophet import Prophet
 import services.logger.logger as logger
 import services.lcu.common as common
+from services.buffApi import update
 
 # 进程名称常量
 PROC_NAME = "hh-lol-prophet.exe"
@@ -100,7 +101,7 @@ def main():
 
     # 启动检查更新线程
     import threading
-    threading.Thread(target=check_update).start()
+    # threading.Thread(target=check_update).start()
 
     # 创建并运行Prophet
     prophet = Prophet()
@@ -157,17 +158,14 @@ def check_update() -> Optional[Exception]:
         # 获取当前版本信息
         # 这里需要实现获取版本信息的功能
         # 由于原Go代码中的实现依赖于API，这里先模拟
-        update_info = {
-            "version_tag": "",
-            "download_url": ""
-        }
+        update_info = update.get_curr_version()
 
         # 检查版本信息
-        if not update_info["version_tag"] or not update_info["download_url"]:
+        if not update_info["versionTag"] or not update_info["downloadUrl"]:
             return None
 
         # 解析版本号
-        version_str = update_info["version_tag"].lstrip("v")
+        version_str = update_info["versionTag"].lstrip("v")
 
         # 比较版本
         if common.compare_version(version_str, version.APP_VERSION) <= 0:
@@ -206,7 +204,7 @@ def check_update() -> Optional[Exception]:
         bin_new_full_path = os.path.join(dir_path, PROC_NEW_NAME)
 
         # 下载文件
-        response = requests.get(update_info["download_url"], stream=True)
+        response = requests.get(update_info["downloadUrl"], stream=True)
         if response.status_code != 200:
             return Exception("下载更新文件失败")
 
@@ -231,7 +229,6 @@ def check_update() -> Optional[Exception]:
         # 退出当前进程
         sys.exit(0)
 
-        return None
     except Exception as e:
         logger.error(f"检查更新失败: {e}")
         return e

@@ -11,7 +11,7 @@ LOL_UX_PROCESS_NAME = "LeagueClientUx.exe"
 COMMANDLINE_REG = re.compile(r'--remoting-auth-token=([^"]+).*?--app-port=(\d+)')
 
 
-def get_lol_client_api_info():
+def get_lol_client_api_info_adapt():
     return get_lol_client_api_info_v3()
 
 
