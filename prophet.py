@@ -357,12 +357,14 @@ class Prophet:
 
         # 2. 如果 enable_pprof 为 True，预留挂载 Profiling 中间件的入口
         if self.opts.enable_pprof:
-            # 注意：starlette 并不自带 profiling 中间件，如果需要，可自行安装并替换下面的占位符
             try:
-                from starlette.middleware.profiling import ProfilingMiddleware
-                app.add_middleware(ProfilingMiddleware, profiles_dir="./profiles")
+                from pyinstrument.middleware import ProfilerMiddleware
+                app.add_middleware(ProfilerMiddleware,
+                                   server_timing_header=True,  # 添加 Server-Timing 头
+                                   profiler_output_dir="./profiles")  # 保存分析结果到文件
+                logger.info("已启用 PyInstrument 性能分析中间件")
             except ImportError:
-                logger.warning("ProfilingMiddleware 未找到，请确保已安装相应库，否则此处不会生效。")
+                logger.warning("PyInstrument 未安装，请运行 'pip install pyinstrument' 启用性能分析")
 
         # 3. 配置 CORS
         cors_kwargs = {
