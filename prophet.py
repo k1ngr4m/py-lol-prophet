@@ -1,6 +1,9 @@
 import threading
 import re
 import time
+import base64
+import json
+import ssl
 from enum import Enum
 from typing import Optional, Callable, Any
 
@@ -9,10 +12,14 @@ from services.lcu import common, client
 from services.lcu.client import Client
 from services.lcu.models.api import SummonerProfileData
 from services.lcu import reverse_proxy
+from services.lcu import api
+from services.lcu.models.lol import GameFlow as LolGameFlow
 from services.lcu.reverse_proxy import RP
 from api import Api
 import global_conf.global_conf as global_vars
 import services.logger.logger as logger
+import websocket  # 需要安装：pip install websocket-client
+from services.lcu.ws import SUBSCRIBE_ALL_EVENT_MSG, ON_JSON_API_EVENT_PREFIX_LEN, WS_EVT_GAME_FLOW_CHANGED, WS_EVT_CHAMP_SELECT_UPDATE_SESSION
 
 
 class CancellationContext:
@@ -75,6 +82,16 @@ class Prophet:
         self.game_state = game_state
         self.lcu_rp = lcu_rp
 
+    # 以下方法需要在 Prophet 中定义或已有：
+    def champion_select_start(self):
+        pass
+
+    def calc_enemy_team_score(self):
+        pass
+
+    def accept_game(self):
+        pass
+
     def is_lcu_active(self) -> bool:
         return self.lcu_active
 
@@ -123,9 +140,146 @@ class Prophet:
 
             time.sleep(1)
 
-    def init_game_flow_monitor(self, port: int, token: str):
-        # 占位方法，你可以稍后补充实现
-        pass
+    def init_game_flow_monitor(self, port: int, auth_pwd: str) -> Exception or None:
+        """
+        等价于 Go 的：
+            func (p *Prophet) initGameFlowMonitor(port int, authPwd string) error { ... }
+        """
+        # 1. 构造 WebSocket URL 与 Header（跳过 TLS 校验）
+        raw_url = common.generate_client_ws_url(port)  # 需要自行实现
+        auth_secret = base64.b64encode(f"{common.AUTH_USERNAME}:{auth_pwd}".encode()).decode()
+        headers = {"Authorization": f"Basic {auth_secret}"}
+
+        try:
+            # websocket.create_connection 会返回一个 WebSocket 对象
+            ws = websocket.create_connection(
+                raw_url,
+                header=headers,
+                sslopt={"cert_reqs": ssl.CERT_NONE}
+            )
+        except Exception as e:
+            return e
+
+        logger.debug(f"connect to lcu {raw_url}")
+
+        # 2. 重试获取当前召唤师信息（最多 5 次，每次间隔 1 秒）
+        for attempt in range(5):
+            try:
+                curr_summoner = api.get_summoner_profile()  # 需要自行实现
+                self.curr_summoner = curr_summoner
+                break
+            except Exception:
+                time.sleep(1)
+        else:
+            return Exception("获取当前召唤师信息失败")
+
+        # 3. 将当前召唤师信息写入全局，并标记 LCU 已激活
+        global_vars.set_curr_summoner(self.curr_summoner)  # 如果有实现，取消注释
+        self.lcu_active = True
+
+        # 4. 订阅所有事件
+        try:
+            # Go: c.WriteMessage(websocket.TextMessage, lcu.SubscribeAllEventMsg)
+            ws.send(SUBSCRIBE_ALL_EVENT_MSG, opcode=websocket.ABNF.OPCODE_TEXT)
+        except Exception as e:
+            return e
+
+        # 5. 持续读取消息并分发
+        while True:
+            try:
+                message = ws.recv()
+            except Exception as e:
+                logger.debug("lol事件监控读取消息失败: %s", e)
+                return e
+
+            # 只处理文本消息，且长度要大于前缀长度 + 1
+            if not isinstance(message, str) or len(message) < ON_JSON_API_EVENT_PREFIX_LEN + 1:
+                continue
+
+            # 消息体：去掉前缀和末尾换行符，再做 JSON 解析
+            try:
+                raw = message[ON_JSON_API_EVENT_PREFIX_LEN : -1]
+                msg_obj = json.loads(raw)
+            except Exception:
+                continue
+
+            uri = msg_obj.get("uri")
+            data = msg_obj.get("data")
+
+            # 分发：游戏流程变化
+            if uri == WS_EVT_GAME_FLOW_CHANGED:
+                try:
+                    game_flow = LolGameFlow(**json.loads(data))
+                except Exception:
+                    # 如果结构体解析失败，也可以先忽略
+                    continue
+                self.on_game_flow_update(game_flow)
+
+            # 分发：抢/选人阶段更新
+            elif uri == WS_EVT_CHAMP_SELECT_UPDATE_SESSION:
+                try:
+                    session_info = ChampSelectSessionInfo(**json.loads(data))
+                except Exception as e:
+                    logger.debug("champSelectUpdateSessionEvt 解析结构体失败: %s", e)
+                    continue
+                # 用一个单独线程去处理此事件，避免阻塞
+                threading.Thread(
+                    target=lambda: self.on_champ_select_session_update(session_info),
+                    daemon=True
+                ).start()
+
+            # 其它事件可以按需继续添加 elif 分支
+
+        # （循环退出时会走到这里，但通常不会到达）
+        # ws.close()  # 如果需要在某个条件下退出循环并关闭 WebSocket，可放在循环外
+        # return None
+
+    def update_game_state(self, new_state):
+        """
+        用于更新内部的游戏状态字段，并做必要的状态变更逻辑。
+        你可以在此处添加一些公共的进入/退出某个状态时的处理。
+        """
+        self.game_state = new_state
+        logger.info(f"GameState updated to {new_state}")
+
+    def on_game_flow_update(self, game_flow):
+        """
+        等价于 Go 中：
+            func (p *Prophet) onGameFlowUpdate(gameFlow models.GameFlow) { ... }
+        """
+        logger.debug("切换状态: %s", game_flow)
+
+        # 进入英雄选择阶段
+        if game_flow == LolGameFlow.CHAMP_SELECT:
+            logger.info("进入英雄选择阶段,正在计算用户分数")
+            self.update_game_state(GameState.CHAMP_SELECT)
+            threading.Thread(target=self.champion_select_start, daemon=True).start()
+
+        # 无状态
+        elif game_flow == LolGameFlow.NONE:
+            self.update_game_state(GameState.NONE)
+
+        # 匹配中
+        elif game_flow == LolGameFlow.MATCHMAKING:
+            self.update_game_state(GameState.MATCHMAKING)
+
+        # 游戏进行中
+        elif game_flow == LolGameFlow.IN_PROGRESS:
+            self.update_game_state(GameState.IN_GAME)
+            threading.Thread(target=self.calc_enemy_team_score, daemon=True).start()
+
+        # 等待接受对局
+        elif game_flow == LolGameFlow.READY_CHECK:
+            self.update_game_state(GameState.READY_CHECK)
+            client_cfg = global_vars.get_client_user_conf()  # 按实际路径和函数名修改
+            if client_cfg.auto_accept_game:
+                threading.Thread(target=self.accept_game, daemon=True).start()
+
+        # 其他任意情况
+        else:
+            self.update_game_state(GameState.OTHER)
+
+
 
 def new_prophet(*apply_options: ApplyOption) -> Prophet:
     ctx = CancellationContext()

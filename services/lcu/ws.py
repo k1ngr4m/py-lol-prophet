@@ -170,3 +170,46 @@ class WebSocketClient:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(close())
+
+import json
+
+# 订阅所有事件（发送给 WebSocket 服务以订阅所有事件）
+SUBSCRIBE_ALL_EVENT_MSG = b'[5, "OnJsonApiEvent"]'
+
+# 消息前缀长度：WebSocket 接收到的每条消息前面会带固定的前缀，需要去除该长度才是有效的 JSON
+ON_JSON_API_EVENT_PREFIX_LEN = len('[8,"OnJsonApiEvent",')
+
+# WsEvt 常量，用于匹配不同类型的事件 URI
+WS_EVT_GAME_FLOW_CHANGED = "/lol-gameflow/v1/gameflow-phase"         # 游戏状态切换
+WS_EVT_CHAMP_SELECT_UPDATE_SESSION = "/lol-champ-select/v1/session"  # 进入英雄选择阶段
+
+
+class WsMsg:
+    """
+    对应 Go 中的：
+        type WsMsg struct {
+            Data      json.RawMessage `json:"data"`
+            EventType string          `json:"event_type"`
+            Uri       string          `json:"uri"`
+        }
+
+    用于封装 WebSocket 消息体解析后的对象。
+    """
+    def __init__(self, data, event_type: str, uri: str):
+        self.data = data
+        self.event_type = event_type
+        self.uri = uri
+
+    @staticmethod
+    def from_json(json_bytes: bytes) -> 'WsMsg':
+        """
+        从字节或字符串形式的 JSON 载荷中解析出 WsMsg 对象。
+        :param json_bytes: b'{"data":..., "event_type":..., "uri":...}'
+        :return: WsMsg 实例
+        """
+        d = json.loads(json_bytes)
+        return WsMsg(
+            data=d.get("data"),
+            event_type=d.get("event_type"),
+            uri=d.get("uri")
+        )
