@@ -7,7 +7,7 @@ import time
 import urllib.request
 import urllib.error
 import urllib.parse
-from services.lcu.windows import get_lol_client_api_info
+from services.lcu.windows import get_lol_client_api_info_v3
 from http.client import HTTPSConnection
 from urllib.parse import urlparse, parse_qs
 
@@ -76,7 +76,7 @@ def run_server(port):
     def update_proxy_url():
         while True:
             try:
-                lcu_port, lcu_token = get_lol_client_api_info()
+                lcu_port, lcu_token = get_lol_client_api_info_v3()
                 new_proxy_url = f"https://riot:{lcu_token}@127.0.0.1:{lcu_port}"
                 if handler_class.proxy_url != new_proxy_url:
                     handler_class.proxy_url = new_proxy_url

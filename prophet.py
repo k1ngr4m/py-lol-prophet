@@ -4,6 +4,7 @@ import time
 import base64
 import json
 import ssl
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from typing import Optional, Callable, Any
 
@@ -25,6 +26,13 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from routes import register_routes
+import subprocess
+import webbrowser
+import asyncio
+import signal
+from typing import Optional
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 
 
 class CancellationContext:
@@ -116,7 +124,6 @@ class Prophet:
                 try:
                     # 获取 LCU 信息
                     port, token = common.get_lol_client_api_info()
-                    print(port,token)
                 except Exception as err:
                     # 如果不是 "LOL 未运行" 错误，就打印警告
                     if not isinstance(err, common.ErrLolProcessNotFound):
@@ -414,10 +421,121 @@ class Prophet:
         self.http_srv = server
 
     def init_web_view(self):
-        pass
+        """
+        初始化 WebView 界面（在浏览器中打开应用界面）
+        """
+        try:
+            # 获取客户端配置
+            client_cfg = global_vars.get_client_user_conf()
 
-    def notify_quit(self):
-        pass
+            # 获取基础 URL
+            index_url = global_vars.Conf.web_view.IndexUrl
+            default_url = f"{index_url}?version={version.APP_VERSION}"
+            website_url = default_url
+                # 检查是否应自动打开浏览器
+            should_auto_open = getattr(client_cfg, 'should_auto_open_browser', True)
+            if not should_auto_open:
+                logger.info(f"自动打开浏览器选项已关闭，手动打开请访问 {website_url}")
+                return
+
+            # 尝试使用跨平台方式打开浏览器
+            try:
+                # 方法1: 使用 Python 内置的 webbrowser 模块
+                webbrowser.open(website_url, new=2)
+                logger.info(f"界面已在浏览器中打开，若未打开请手动访问 {website_url}")
+            except Exception:
+                # 方法2: 使用 Windows 命令（兼容原始 Go 代码）
+                try:
+                    subprocess.run(["cmd", "/c", "start", website_url],
+                                  shell=True,
+                                  check=True)
+                    logger.info(f"界面已在浏览器中打开，若未打开请手动访问 {website_url}")
+                except Exception as e:
+                    logger.error(f"无法打开浏览器: {e}")
+                    logger.info(f"请手动访问: {website_url}")
+
+        except Exception as e:
+            logger.error(f"初始化 WebView 时出错: {e}")
+
+    async def notify_quit(self):
+        """
+        等待程序退出信号，管理服务器生命周期
+        """
+        # 创建事件循环
+        loop = asyncio.get_running_loop()
+
+        # 设置中断信号处理
+        interrupt_event = asyncio.Event()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, interrupt_event.set)
+
+        # 创建线程池用于运行阻塞操作
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            # 任务1: 运行HTTP服务器
+            server_task = loop.run_in_executor(
+                executor,
+                self.http_srv.run
+            )
+
+            # 任务2: 监听中断信号
+            async def watch_interrupt():
+                await interrupt_event.wait()
+                logger.info("收到退出信号，正在关闭服务器...")
+
+                # 调用停止方法
+                await self.stop()
+
+                # 关闭服务器
+                with suppress(Exception):
+                    await self.http_srv.shutdown()
+
+            interrupt_task = asyncio.create_task(watch_interrupt())
+
+            # 任务3: 监听上下文取消
+            async def watch_context():
+                while not self.ctx.cancelled:
+                    await asyncio.sleep(0.1)
+                logger.info("上下文已取消，正在关闭服务器...")
+                interrupt_event.set()
+
+            context_task = asyncio.create_task(watch_context())
+
+            # 等待所有任务完成
+            done, pending = await asyncio.wait(
+                [server_task, interrupt_task, context_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+
+            # 取消未完成的任务
+            for task in pending:
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
+
+            # 检查是否有错误
+            for task in done:
+                if task.exception():
+                    logger.error(f"任务异常: {task.exception()}")
+                    return task.exception()
+
+        return None
+
+    async def stop(self):
+        """停止服务，清理资源"""
+        logger.info("正在停止服务...")
+
+        # 清理 LCU 连接
+        if hasattr(self, 'lcu_ws') and self.lcu_ws:
+            with suppress(Exception):
+                self.lcu_ws.close()
+                self.lcu_ws = None
+
+        # 清理其他资源
+        # ...
+
+        # 标记上下文为已取消
+        self.ctx.cancel()
+        logger.info("服务已停止")
 
     def run(self):
         # 启动后台线程
