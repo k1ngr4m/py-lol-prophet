@@ -463,11 +463,19 @@ class Prophet:
         """
         # 创建事件循环
         loop = asyncio.get_running_loop()
-
-        # 设置中断信号处理
         interrupt_event = asyncio.Event()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, interrupt_event.set)
+
+        # # 设置中断信号处理
+        # interrupt_event = asyncio.Event()
+        # for sig in (signal.SIGINT, signal.SIGTERM):
+        #     loop.add_signal_handler(sig, interrupt_event.set)
+
+        # Windows 专用信号处理
+        def signal_handler(sig, frame):
+            logger.info("收到 Ctrl+C 信号")
+            interrupt_event.set()
+
+        signal.signal(signal.SIGINT, signal_handler)
 
         # 创建线程池用于运行阻塞操作
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -547,13 +555,12 @@ class Prophet:
 
         # 初始化 WebView（界面服务）
         threading.Thread(target=self.init_web_view, daemon=True).start()
-        # 打印启动信息
+
         logger.info(
             f"{global_vars.Conf.app_name} 已启动 v{version.APP_VERSION} -- {global_vars.Conf.website_title}"
         )
 
-        # 等待退出（阻塞主线程）
-        return self.notify_quit()
+        return asyncio.run(self.notify_quit())
 
 
 def new_prophet(*apply_options: ApplyOption) -> Prophet:
