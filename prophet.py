@@ -129,6 +129,7 @@ class Prophet:
                 try:
                     # 获取 LCU 信息
                     port, token = common.get_lol_client_api_info()
+                    logger.info(f"[{thread_name}] <UNK>, port: {port}, token: {token}")
                 except Exception as err:
                     # 如果不是 "LOL 未运行" 错误，就打印警告
                     if not isinstance(err, common.ErrLolProcessNotFound):

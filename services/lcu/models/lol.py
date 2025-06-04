@@ -1,4 +1,6 @@
 from enum import Enum
+from typing import Any
+
 
 # ---------- 游戏模式 ----------
 class GameMode(str, Enum):
@@ -69,14 +71,17 @@ BOT_NORMAL_QUEUE_ID = 850 # 人机一般
 CHEERY_QUEUE_ID = 1700    # 斗魂竞技场
 
 # ---------- 地图 ID ----------
-MAP_ID_CLASSIC = 11  # 经典模式召唤师峡谷
-MAP_ID_ARAM = 12     # 极地大乱斗
-MAP_ID_CHEERY = 30   # 斗魂竞技场
+class MapID(int, Enum):
+    MAP_ID_CLASSIC = 11  # 经典模式召唤师峡谷
+    MAP_ID_ARAM = 12     # 极地大乱斗
+    MAP_ID_CHEERY = 30   # 斗魂竞技场
 
 # ---------- 队伍 ID ----------
-TEAM_ID_NONE = 0     # 未知
-TEAM_ID_BLUE = 100   # 蓝色方
-TEAM_ID_RED = 200    # 红色方
+class TeamID(int, Enum):
+    TEAM_ID_NONE = 0     # 未知
+    TEAM_ID_BLUE = 100   # 蓝色方
+    TEAM_ID_RED = 200    # 红色方
+
 TEAM_ID_STR_NONE = ""   # 未知
 TEAM_ID_STR_BLUE = "100"# 蓝色方
 TEAM_ID_STR_RED = "200" # 红色方
@@ -91,17 +96,17 @@ SPELL_SHANXIAN = 4    # 闪现
 
 # ---------- 位置 ----------
 class Lane(str, Enum):
-    TOP = "TOP"         # 上路
-    JUNGLE = "JUNGLE"   # 打野
-    MIDDLE = "MIDDLE"   # 中路
-    BOTTOM = "BOTTOM"   # 下路
+    LaneTop = "TOP"         # 上路
+    LaneJungle = "JUNGLE"   # 打野
+    LaneMiddle = "MIDDLE"   # 中路
+    LaneBottom = "BOTTOM"   # 下路
 
 # ---------- 英雄角色 ----------
 class ChampionRole(str, Enum):
-    SOLO = "SOLE"          # 单人路
-    DUO_SUPPORT = "DUO_SUPPORT"  # 辅助
-    DUO_CARRY = "DUO_CARRY"      # ADC
-    NONE = "NONE"          # 无，一般打野
+    ChampionRoleSolo = "SOLE"          # 单人路
+    ChampionRoleSupport = "DUO_SUPPORT"  # 辅助
+    ChampionRoleADC = "DUO_CARRY"      # ADC
+    ChampionRoleNone = "NONE"          # 无，一般打野
 
 # ---------- 游戏大区 ----------
 PLATFORM_ID_HN1 = "HN1"  # 大区：艾欧尼亚

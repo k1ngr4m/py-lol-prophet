@@ -5,23 +5,27 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple
 
+
+
+
 @dataclass
 class ScoreOption:
     """评分选项"""
-    FIRST_BLOOD = "首杀"
-    PENTA_KILL = "五杀"
-    QUADRA_KILL = "四杀"
-    TRIPLE_KILL = "三杀"
-    JOIN_TEAM_RATE_RANK = "参团率排名"
-    GOLD_EARNED_RANK = "经济排名"
-    HURT_RANK = "伤害排名"
-    MONEY2HURT_RATE_RANK = "金钱转换率排名"
-    VISION_SCORE_RANK = "视野得分排名"
-    MINIONS_KILLED = "补刀"
-    KILL_RATE = "击杀占比"
-    HURT_RATE = "伤害占比"
-    ASSIST_RATE = "助攻占比"
-    KDA_ADJUST = "KDA调整"
+    ScoreOptionFirstBloodKill = "一血击杀"
+    ScoreOptionFirstBloodAssist = "一血助攻"
+    ScoreOptionPentaKills = "五杀"
+    ScoreOptionQuadraKills = "四杀"
+    ScoreOptionTripleKills = "三杀"
+    ScoreOptionJoinTeamRateRank = "参团率排名"
+    ScoreOptionGoldEarnedRank = "打钱排名"
+    ScoreOptionHurtRank = "伤害排名"
+    ScoreOptionMoney2hurtRateRank = "金钱转换率排名"
+    ScoreOptionVisionScoreRank = "视野得分排名"
+    ScoreOptionMinionsKilled = "补兵"
+    ScoreOptionKillRate = "击杀占比"
+    ScoreOptionHurtRate = "伤害占比"
+    ScoreOptionAssistRate = "助攻占比"
+    ScoreOptionKDAAdjust = "KDA调整"
 
 class GameScore:
     """游戏评分"""
@@ -90,7 +94,7 @@ def calc_game_score(game_summary: Dict[str, Any], user_participant_id: int,
     Returns:
         游戏评分和错误信息的元组
     """
-    from src.hh_lol_prophet.utils.common import in_array
+    from services.lcu.common import in_array
     
     # 检查游戏时长
     if game_summary.get("gameDuration", 0) < calc_score_conf.game_min_duration:

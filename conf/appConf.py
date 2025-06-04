@@ -63,7 +63,7 @@ class HorseScoreConf(BaseModel):
 class CalcScoreConf(BaseModel):
     Enabled: bool = Field(default=False)
     GameMinDuration: int = Field(default=900)  # 允许计算战绩的最低游戏时长
-    AllowQueueIDList: List[int] = Field(default_factory=list)  # 允许计算战绩的queueID
+    AllowQueueIDList: List[int] = Field(default=([430, 420, 450, 440, 1700]))  # 允许计算战绩的queueID
     FirstBlood: Tuple[float, float] = Field(default=(10,5)) # [击杀+,助攻+]
     PentaKills: Tuple[float] = Field(default=(20,))
     QuadraKills: Tuple[float] = Field(default=(10,)) # 四杀
