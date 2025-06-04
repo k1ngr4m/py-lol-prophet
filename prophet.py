@@ -33,6 +33,8 @@ import signal
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from pyinstrument.middleware import ProfilerMiddleware
+from starlette.middleware import Middleware
 
 
 class CancellationContext:
@@ -361,14 +363,17 @@ class Prophet:
         # 1. 根据 debug 标志创建 FastAPI 应用
         debug = bool(self.opts.debug)
         app = FastAPI(debug=debug)
-
+        middleware_list = []
         # 2. 如果 enable_pprof 为 True，预留挂载 Profiling 中间件的入口
         if self.opts.enable_pprof:
             try:
-                from pyinstrument.middleware import ProfilerMiddleware
-                app.add_middleware(ProfilerMiddleware,
-                                   server_timing_header=True,  # 添加 Server-Timing 头
-                                   profiler_output_dir="./profiles")  # 保存分析结果到文件
+                middleware_list.append(
+                    Middleware(
+                        ProfilerMiddleware,
+                        server_timing_header=True,
+                        profiler_output_dir="./profiles"
+                    )
+                )
                 logger.info("已启用 PyInstrument 性能分析中间件")
             except ImportError:
                 logger.warning("PyInstrument 未安装，请运行 'pip install pyinstrument' 启用性能分析")
