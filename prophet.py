@@ -121,6 +121,8 @@ class Prophet:
             return e
 
     def monitor_start(self):
+        thread_name = threading.current_thread().name
+        logger.debug(f"[{thread_name}] 监控线程启动")
         while True:
             if not self.is_lcu_active():
                 try:
@@ -552,7 +554,7 @@ class Prophet:
 
     def run(self):
         # 启动后台线程
-        threading.Thread(target=self.monitor_start, daemon=True).start()
+        threading.Thread(target=self.monitor_start, name="MonitorThread", daemon=True).start()
         threading.Thread(target=self.capture_start_message, daemon=True).start()
 
         # 初始化 Web 接口服务
