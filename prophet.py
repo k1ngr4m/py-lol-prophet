@@ -89,6 +89,7 @@ class Prophet:
         self.lcu_port = lcu_port
         self.lcu_token = lcu_token
         self.lcu_active = lcu_active
+        self.lcu_client = None
         self.curr_summoner = curr_summoner
         self.cancel = cancel
         self.api = api
@@ -110,7 +111,7 @@ class Prophet:
         return self.lcu_active
 
     def init_lcu_client(self, port: int, token: str):
-        client.init_cli(port, token)
+        self.lcu_client = client.init_cli(port, token)
 
     def init_lcu_rp(self, port: int, token: str) -> Optional[Exception]:
         try:

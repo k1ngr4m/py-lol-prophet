@@ -98,6 +98,7 @@ def init_cli(port: int, token: str):
     """
     global cli
     cli = Client(port, token)
+    return cli
 
 def new_client(port: int, token: str) -> Client:
     """

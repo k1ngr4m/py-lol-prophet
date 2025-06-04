@@ -47,9 +47,9 @@ class Api:
 
         # 确定马匹等级
         horse = ""
-        for i, v in enumerate(score_cfg.horse):
-            if score_info.score >= v.score:
-                horse = client_user_cfg.horse_name_conf[i]
+        for i, v in enumerate(score_cfg.Horse):
+            if score_info.score >= v.Score:
+                horse = client_user_cfg.HorseNameConf[i]
                 break
 
         return {
