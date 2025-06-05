@@ -10,6 +10,8 @@ def register_routes(app: FastAPI, api: Api):
         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     )
     async def test_handler(request: Request):
+        if request.method == "OPTIONS":
+            return {"status": "OK"}
         return await api.DevHand(request)
 
     # 2. 创建 /v1 路由组
