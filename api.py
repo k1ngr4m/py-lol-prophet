@@ -15,7 +15,7 @@ class Api:
     def __init__(self, prophet: Any):
         self.prophet = prophet
 
-    async def ProphetActiveMid(self, request: Request):
+    async def ProphetActiveMid(self):
         """检查LCU是否激活的中间件"""
         if not self.prophet.is_lcu_active():
             raise HTTPException(status_code=400, detail="请检查lol客户端是否已启动")
