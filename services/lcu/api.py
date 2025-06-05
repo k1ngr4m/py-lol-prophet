@@ -1,11 +1,20 @@
 import json
+import string
+import threading
+import time
 import urllib
-from typing import Optional
+from typing import Optional, Any
 import services.logger.logger as logger
-from services.lcu.client import Client
-from services.lcu.models.api import Summoner
+from exlib.token_bucket import query_game_summary_limiter
+from services.lcu.client import Client, cli
+from services.lcu.models.api import Summoner, GameSummary
 import requests
 import os
+import json
+from typing import Optional
+from tenacity import retry, wait_fixed, stop_after_attempt
+from urllib.parse import urlencode
+
 
 def get_summoner_profile():
     pass
@@ -45,7 +54,7 @@ def champ_select_patch_action(
         payload["completed"] = completed
 
     try:
-        Client.http_patch(f"/lol-champ-select/v1/session/actions/{action_id}", payload)
+        cli.http_patch(f"/lol-champ-select/v1/session/actions/{action_id}", payload)
         return None
     except Exception as e:
         logger.warning(f"champ_select_patch_action failed: {e}")
@@ -139,4 +148,69 @@ def query_summoner_by_name(name: str, client: Client) -> Optional[Summoner]:
         return None
     except Exception as e:
         logger.error(f"搜索用户时发生未知错误: {e}", exc_info=True)
+        return None
+
+def list_games_by_puuid(puuid: str, begin: int, limit: int, client: Client) -> Optional[dict]:
+    """
+    获取指定PUUID的比赛记录
+
+    Args:
+        puuid: 玩家唯一标识符
+        begin: 起始索引
+        limit: 获取数量
+        client: client
+
+    Returns:
+        GameListResp格式的字典，或None(失败时)
+    """
+    # 构建查询参数
+    params = {
+        'begIndex': begin,
+        'endIndex': begin + limit
+    }
+    query_str = urlencode(params)
+
+    # 构建URL
+    path = f"/lol-match-history/v1/products/lol/{puuid}/matches?{query_str}"
+
+    try:
+        # 发送HTTP GET请求
+        response = client.http_get(path)
+
+        data = response.decode('utf-8')
+        json_data = json.loads(data)
+
+        return json_data
+
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON解析失败: puuid={puuid}, error={str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"获取比赛记录异常: puuid={puuid}, error={str(e)}")
+        return None
+
+
+
+@retry(wait=wait_fixed(0.01), stop=stop_after_attempt(5))
+def query_game_summary(game_id: int, client: Client) -> Optional[Any]:
+    """查询对局详情信息"""
+    try:
+        # 等待限流器 (如果有)
+        if query_game_summary_limiter:
+            query_game_summary_limiter.wait()
+
+        # 发送API请求
+        url = f"/lol-match-history/v1/games/{game_id}"
+        response = client.http_get(url)
+        data = response.decode('utf-8')
+        json_data = json.loads(data)
+
+        # 转换为模型对象
+        return GameSummary.from_dict(json_data)
+
+    except json.JSONDecodeError as e:
+        logger.debug(f"JSON解析失败: game_id={game_id}, error={str(e)}")
+        return None
+    except Exception as e:
+        logger.debug(f"查询对局详情异常: game_id={game_id}, error={str(e)}")
         return None

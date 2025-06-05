@@ -6,7 +6,8 @@ import global_conf.global_conf as global_vars
 from services.db.models import config
 from services.lcu import common
 from services.lcu import api
-
+from app import get_user_score
+from services.lcu.client import cli
 from services.lcu.models.api import Summoner
 
 
@@ -41,7 +42,7 @@ class Api:
             summoner = summoner_info
 
         # 计算用户分数（假设已实现）
-        score_info = self.get_user_score(summoner)
+        score_info = get_user_score(summoner,self.prophet.lcu_client)
         score_cfg = global_vars.get_score_conf()
         client_user_cfg = global_vars.get_client_user_conf()
 
@@ -99,13 +100,13 @@ class Api:
         return await self.prophet.lcu_rp.proxy_request(request, full_path)
 
     # 辅助方法
-    def get_user_score(self, summoner: Summoner) -> Any:
-        """计算用户分数（需根据业务逻辑实现）"""
-
-        # 示例返回对象
-        class ScoreInfo:
-            def __init__(self, score, curr_kda):
-                self.score = score
-                self.curr_kda = curr_kda
-
-        return ScoreInfo(score=150, curr_kda="5/2/8")
+    # def get_user_score(self, summoner: Summoner) -> Any:
+    #     """计算用户分数（需根据业务逻辑实现）"""
+    #
+    #     # 示例返回对象
+    #     class ScoreInfo:
+    #         def __init__(self, score, curr_kda):
+    #             self.score = score
+    #             self.curr_kda = curr_kda
+    #
+    #     return ScoreInfo(score=150, curr_kda="5/2/8")

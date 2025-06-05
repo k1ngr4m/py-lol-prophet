@@ -233,6 +233,22 @@ class Participant:
     timeline: Timeline = None
     # stats and timeline fields omitted for brevity
     # they should be modeled similarly to PerMinDeltas and ParticipantPlayer
+    @classmethod
+    def from_dict(cls, data: dict):
+        # 转换timeline字典为Timeline实例
+        timeline_data = data.get('timeline', {})
+        timeline = Timeline(**timeline_data) if timeline_data else None
+
+        return cls(
+            champion_id=data.get('champion_id', 0),
+            highest_achieved_season_tier=data.get('highest_achieved_season_tier', ''),
+            participant_id=data.get('participant_id', 0),
+            spell1_id=data.get('spell1_id', 0),
+            spell2_id=data.get('spell2_id', 0),
+            stats=data.get('stats'),
+            team_id=data.get('team_id', TeamID(0)),
+            timeline=timeline
+        )
 
 @dataclass
 class ParticipantIdentity:

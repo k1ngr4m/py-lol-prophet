@@ -79,15 +79,16 @@ def get_user_score(summoner: Any, client: Client) -> UserScore:
         try:
             score_value = calc_user_game_score(summoner_id, summary)
         except Exception as e:
+            print(e)
             logger.debug(f"计算得分失败: game_id={summary['gameId']}, error={str(e)}")
             return user_score  # 遇到错误直接返回默认分数
 
         # 判断是否在5小时内的对局
         game_time = summary.game_creation_date
         if now_time - game_time < timedelta(hours=5):
-            curr_time_scores.append(score_value)
+            curr_time_scores.append(score_value[0].score)
         else:
-            other_scores.append(score_value)
+            other_scores.append(score_value[0].score)
 
     # 6. 计算加权得分
     total_games = len(game_summaries)
@@ -202,29 +203,28 @@ def calc_user_game_score(summoner_id: int, game_summary: 'GameSummary') -> Union
     )
 
     # 一血击杀/助攻
-    # todo "'dict' object has no attribute 'first_blood_kill'"
-    if user_participant.stats.first_blood_kill:
-        game_score.add(calc_score_conf.first_blood[0], ScoreOption.ScoreOptionFirstBloodKill)
-    elif user_participant.stats.first_blood_assist:
-        game_score.add(calc_score_conf.first_blood[1], ScoreOption.ScoreOptionFirstBloodAssist)
+    stats = user_participant.stats
+    if stats['firstBloodKill']:
+        game_score.add(calc_score_conf.FirstBlood[0], ScoreOption.ScoreOptionFirstBloodKill)
+    elif stats['firstBloodAssist']:
+        game_score.add(calc_score_conf.FirstBlood[1], ScoreOption.ScoreOptionFirstBloodAssist)
 
     # 多杀判定
-    stats = user_participant.stats
-    if stats.penta_kills > 0:
-        game_score.add(calc_score_conf.penta_kills[0], ScoreOption.ScoreOptionPentaKills)
-    elif stats.quadra_kills > 0:
-        game_score.add(calc_score_conf.quadra_kills[0], ScoreOption.ScoreOptionQuadraKills)
-    elif stats.triple_kills > 0:
-        game_score.add(calc_score_conf.triple_kills[0], ScoreOption.ScoreOptionTripleKills)
+    if stats['pentaKills'] > 0:
+        game_score.add(calc_score_conf.PentaKills[0], ScoreOption.ScoreOptionPentaKills)
+    elif stats['quadraKills'] > 0:
+        game_score.add(calc_score_conf.QuadraKills[0], ScoreOption.ScoreOptionQuadraKills)
+    elif stats['tripleKills'] > 0:
+        game_score.add(calc_score_conf.TripleKills[0], ScoreOption.ScoreOptionTripleKills)
 
     # 参团率排名
     if total_kill > 0:
-        user_kill_contribution = stats.kills + stats.assists
+        user_kill_contribution = stats['kills'] + stats['assists']
         user_join_rate = user_kill_contribution / total_kill
 
         # 获取队伍成员参团率列表
         member_rates = [
-            (p.stats.kills + p.stats.assists) / total_kill
+            (p.stats['kills'] + p.stats['assists']) / total_kill
             for p in game_summary.participants
             if p.participant_id in member_participant_ids
         ]
@@ -235,19 +235,19 @@ def calc_user_game_score(summoner_id: int, game_summary: 'GameSummary') -> Union
                 rank += 1
 
         if rank == 1:
-            game_score.add(calc_score_conf.join_team_rate_rank[0], ScoreOption.ScoreOptionJoinTeamRateRank)
+            game_score.add(calc_score_conf.JoinTeamRateRank[0], ScoreOption.ScoreOptionJoinTeamRateRank)
         elif rank == 2:
-            game_score.add(calc_score_conf.join_team_rate_rank[1], ScoreOption.ScoreOptionJoinTeamRateRank)
+            game_score.add(calc_score_conf.JoinTeamRateRank[1], ScoreOption.ScoreOptionJoinTeamRateRank)
         elif rank == 4:
-            game_score.add(-calc_score_conf.join_team_rate_rank[2], ScoreOption.ScoreOptionJoinTeamRateRank)
+            game_score.add(-calc_score_conf.JoinTeamRateRank[2], ScoreOption.ScoreOptionJoinTeamRateRank)
         elif rank == 5:
-            game_score.add(-calc_score_conf.join_team_rate_rank[3], ScoreOption.ScoreOptionJoinTeamRateRank)
+            game_score.add(-calc_score_conf.JoinTeamRateRank[3], ScoreOption.ScoreOptionJoinTeamRateRank)
 
     # 金钱排名
     if total_money > 0:
-        user_money = stats.gold_earned
+        user_money = stats['goldEarned']
         member_moneys = [
-            p.stats.gold_earned
+            p.stats['goldEarned']
             for p in game_summary.participants
             if p.participant_id in member_participant_ids
         ]
@@ -258,19 +258,19 @@ def calc_user_game_score(summoner_id: int, game_summary: 'GameSummary') -> Union
                 rank += 1
 
         if rank == 1:
-            game_score.add(calc_score_conf.gold_earned_rank[0], ScoreOption.ScoreOptionGoldEarnedRank)
+            game_score.add(calc_score_conf.GoldEarnedRank[0], ScoreOption.ScoreOptionGoldEarnedRank)
         elif rank == 2:
-            game_score.add(calc_score_conf.gold_earned_rank[1], ScoreOption.ScoreOptionGoldEarnedRank)
+            game_score.add(calc_score_conf.GoldEarnedRank[1], ScoreOption.ScoreOptionGoldEarnedRank)
         elif rank == 4 and not is_support_role:
-            game_score.add(-calc_score_conf.gold_earned_rank[2], ScoreOption.ScoreOptionGoldEarnedRank)
+            game_score.add(-calc_score_conf.GoldEarnedRank[2], ScoreOption.ScoreOptionGoldEarnedRank)
         elif rank == 5 and not is_support_role:
-            game_score.add(-calc_score_conf.gold_earned_rank[3], ScoreOption.ScoreOptionGoldEarnedRank)
+            game_score.add(-calc_score_conf.GoldEarnedRank[3], ScoreOption.ScoreOptionGoldEarnedRank)
 
     # 伤害排名
     if total_hurt > 0:
-        user_hurt = stats.total_damage_dealt_to_champions
+        user_hurt = stats['totalDamageDealtToChampions']
         member_hurts = [
-            p.stats.total_damage_dealt_to_champions
+            p.stats['totalDamageDealtToChampions']
             for p in game_summary.participants
             if p.participant_id in member_participant_ids
         ]
@@ -281,15 +281,15 @@ def calc_user_game_score(summoner_id: int, game_summary: 'GameSummary') -> Union
                 rank += 1
 
         if rank == 1:
-            game_score.add(calc_score_conf.hurt_rank[0], ScoreOption.ScoreOptionHurtRank)
+            game_score.add(calc_score_conf.HurtRank[0], ScoreOption.ScoreOptionHurtRank)
         elif rank == 2:
-            game_score.add(calc_score_conf.hurt_rank[1], ScoreOption.ScoreOptionHurtRank)
+            game_score.add(calc_score_conf.HurtRank[1], ScoreOption.ScoreOptionHurtRank)
 
     # 金钱转化率
     if total_money > 0 and total_hurt > 0:
-        user_money2hurt = stats.total_damage_dealt_to_champions / stats.gold_earned
+        user_money2hurt = stats['totalDamageDealtToChampions'] / stats['goldEarned']
         member_rates = [
-            p.stats.total_damage_dealt_to_champions / p.stats.gold_earned
+            p.stats['totalDamageDealtToChampions'] / p.stats['goldEarned']
             for p in game_summary.participants
             if p.participant_id in member_participant_ids
         ]
@@ -300,14 +300,14 @@ def calc_user_game_score(summoner_id: int, game_summary: 'GameSummary') -> Union
                 rank += 1
 
         if rank == 1:
-            game_score.add(calc_score_conf.money2hurt_rate_rank[0], ScoreOption.ScoreOptionMoney2hurtRateRank)
+            game_score.add(calc_score_conf.Money2hurtRateRank[0], ScoreOption.ScoreOptionMoney2hurtRateRank)
         elif rank == 2:
-            game_score.add(calc_score_conf.money2hurt_rate_rank[1], ScoreOption.ScoreOptionMoney2hurtRateRank)
+            game_score.add(calc_score_conf.Money2hurtRateRank[1], ScoreOption.ScoreOptionMoney2hurtRateRank)
 
     # 视野得分排名
-    user_vision = stats.vision_score
+    user_vision = stats['visionScore']
     member_visions = [
-        p.stats.vision_score
+        p.stats['visionScore']
         for p in game_summary.participants
         if p.participant_id in member_participant_ids
     ]
@@ -318,60 +318,60 @@ def calc_user_game_score(summoner_id: int, game_summary: 'GameSummary') -> Union
             rank += 1
 
     if rank == 1:
-        game_score.add(calc_score_conf.vision_score_rank[0], ScoreOption.ScoreOptionVisionScoreRank)
+        game_score.add(calc_score_conf.VisionScoreRank[0], ScoreOption.ScoreOptionVisionScoreRank)
     elif rank == 2:
-        game_score.add(calc_score_conf.vision_score_rank[1], ScoreOption.ScoreOptionVisionScoreRank)
+        game_score.add(calc_score_conf.VisionScoreRank[1], ScoreOption.ScoreOptionVisionScoreRank)
 
     # 补兵评分
-    total_minions = stats.total_minions_killed
+    total_minions = stats['totalMinionsKilled']
     game_minutes = game_summary.game_duration // 60
     if game_minutes > 0:
         cs_per_min = total_minions / game_minutes
-        for limit in calc_score_conf.minions_killed:
+        for limit in calc_score_conf.MinionsKilled:
             if cs_per_min >= limit[0]:
                 game_score.add(limit[1], ScoreOption.ScoreOptionMinionsKilled)
                 break
 
     # 人头占比评分
     if total_kill > 0:
-        user_kill_rate = stats.kills / total_kill
-        for conf in calc_score_conf.kill_rate:
-            if user_kill_rate > conf.limit:
-                for limit_conf in conf.score_conf:
-                    if stats.kills > limit_conf[0]:
+        user_kill_rate = stats['kills'] / total_kill
+        for conf in calc_score_conf.KillRate:
+            if user_kill_rate > conf.Limit:
+                for limit_conf in conf.ScoreConf:
+                    if stats['kills'] > limit_conf[0]:
                         game_score.add(limit_conf[1], ScoreOption.ScoreOptionKillRate)
                         break
                 break
 
     # 伤害占比评分
     if total_hurt > 0:
-        user_hurt_rate = stats.total_damage_dealt_to_champions / total_hurt
-        for conf in calc_score_conf.hurt_rate:
-            if user_hurt_rate > conf.limit:
-                for limit_conf in conf.score_conf:
-                    if stats.kills > limit_conf[0]:
+        user_hurt_rate = stats['totalDamageDealtToChampions'] / total_hurt
+        for conf in calc_score_conf.HurtRate:
+            if user_hurt_rate > conf.Limit:
+                for limit_conf in conf.ScoreConf:
+                    if stats['kills'] > limit_conf[0]:
                         game_score.add(limit_conf[1], ScoreOption.ScoreOptionHurtRate)
                         break
                 break
 
     # 助攻占比评分
     if total_assist > 0:
-        user_assist_rate = stats.assists / total_assist
-        for conf in calc_score_conf.assist_rate:
-            if user_assist_rate > conf.limit:
-                for limit_conf in conf.score_conf:
-                    if stats.kills > limit_conf[0]:
+        user_assist_rate = stats['assists'] / total_assist
+        for conf in calc_score_conf.AssistRate:
+            if user_assist_rate > conf.Limit:
+                for limit_conf in conf.ScoreConf:
+                    if stats['kills'] > limit_conf[0]:
                         game_score.add(limit_conf[1], ScoreOption.ScoreOptionAssistRate)
                         break
                 break
 
     # KDA调整
-    user_join_rate = (stats.kills + stats.assists) / total_kill if total_kill > 0 else 1.0
-    deaths = stats.deaths if stats.deaths > 0 else 1
+    user_join_rate = (stats['kills'] + stats['assists']) / total_kill if total_kill > 0 else 1.0
+    deaths = stats['deaths'] if stats['deaths'] > 0 else 1
 
-    kda_ratio = (stats.kills + stats.assists) / deaths
-    kill_diff = (stats.kills - stats.deaths) / calc_score_conf.adjust_kda[1]
-    adjust_value = (kda_ratio - calc_score_conf.adjust_kda[0] + kill_diff) * user_join_rate
+    kda_ratio = (stats['kills'] + stats['assists']) / deaths
+    kill_diff = (stats['kills'] - stats['deaths']) / calc_score_conf.AdjustKDA[1]
+    adjust_value = (kda_ratio - calc_score_conf.AdjustKDA[0] + kill_diff) * user_join_rate
 
     game_score.add(adjust_value, ScoreOption.ScoreOptionKDAAdjust)
 

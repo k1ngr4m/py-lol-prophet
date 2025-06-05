@@ -27,6 +27,42 @@ class ScoreOption:
     ScoreOptionAssistRate = "助攻占比"
     ScoreOptionKDAAdjust = "KDA调整"
 
+@dataclass
+class IncScoreReason:
+    reason: str
+    inc_val: float
+
+
+@dataclass
+class ScoreWithReason:
+    score: float
+    reasons: List[IncScoreReason] = field(default_factory=list)
+
+    def add(self, inc_val: float, reason: str):
+        """添加分数并记录原因"""
+        self.score += inc_val
+        self.reasons.append(IncScoreReason(reason=reason, inc_val=inc_val))
+
+    def value(self) -> float:
+        """获取当前总分"""
+        return self.score
+
+    def reasons2string(self) -> str:
+        """将原因列表转换为字符串"""
+        return ", ".join(f"{reason.reason}(+{reason.inc_val})" for reason in self.reasons)
+
+def new_score_with_reason(score: float) -> ScoreWithReason:
+    """创建新的 ScoreWithReason 实例"""
+    return ScoreWithReason(score=score, reasons=[])
+
+class UserScore:
+    def __init__(self, summoner_id: int, summoner_name: str, score: float, curr_kda: List[Tuple[int, int, int]]):
+        self.summoner_id = summoner_id
+        self.summoner_name = summoner_name
+        self.score = score
+        self.curr_kda = curr_kda  # 格式: [(kills, deaths, assists), ...]
+
+
 class GameScore:
     """游戏评分"""
     
