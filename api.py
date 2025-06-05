@@ -55,7 +55,7 @@ class Api:
 
         return {
             "score": score_info.score,
-            "currKDA": score_info.curr_kda,
+            # "currKDA": score_info.curr_kda,
             "horse": horse
         }
 

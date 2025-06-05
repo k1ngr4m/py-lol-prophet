@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timedelta
 from typing import List, Tuple, Any, Optional, Union
 
+from exlib.common import retry_fetch
 from services.lcu.api import list_games_by_puuid, query_game_summary
 from services.lcu.client import Client
 from services.lcu.game_score import UserScore, ScoreWithReason, ScoreOption, new_score_with_reason
@@ -54,21 +55,23 @@ def get_user_score(summoner: Any, client: Client) -> UserScore:
     lock = threading.Lock()
 
     def fetch_game_summary(game_info):
-        for attempt in range(5):
-            try:
-                return query_game_summary(game_info['gameId'], client)
-            except Exception as e:
-                time.sleep(0.01)  # 10ms延迟重试
-        logger.debug(f"获取游戏详情失败: game_id={game_info['gameId']}")
-        return None
+        return retry_fetch(query_game_summary, game_info['gameId'], client, attempts=5, delay=0.01, logger=logger)
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = [executor.submit(fetch_game_summary, game_info) for game_info in game_list]
+        # for attempt in range(5):
+        #     try:
+        #         return query_game_summary(game_info['gameId'], client)
+        #     except Exception as e:
+        #         time.sleep(0.01)  # 10ms延迟重试
+        # logger.debug(f"获取游戏详情失败: game_id={game_info['gameId']}")
+        # return None
+
+    max_workers = min(32, len(game_list))  # 最多不超过 32 个线程
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(fetch_game_summary, gi): gi for gi in game_list}
         for future in concurrent.futures.as_completed(futures):
-            game_summary = future.result()
-            if game_summary:
-                with lock:
-                    game_summaries.append(game_summary)
+            summary = future.result()
+            if summary:
+                game_summaries.append(summary)
 
     # 5. 计算每局得分并分类
     now_time = datetime.now()
@@ -79,13 +82,12 @@ def get_user_score(summoner: Any, client: Client) -> UserScore:
         try:
             score_value = calc_user_game_score(summoner_id, summary)
         except Exception as e:
-            print(e)
-            logger.debug(f"计算得分失败: game_id={summary['gameId']}, error={str(e)}")
+            logger.debug(f"计算得分失败: summoner_id={summoner_id} game_id={summary['gameId']}, error={str(e)}")
             return user_score  # 遇到错误直接返回默认分数
 
         # 判断是否在5小时内的对局
         game_time = summary.game_creation_date
-        if now_time - game_time < timedelta(hours=5):
+        if is_within_last_hours(game_time, 5):
             curr_time_scores.append(score_value[0].score)
         else:
             other_scores.append(score_value[0].score)
@@ -96,9 +98,13 @@ def get_user_score(summoner: Any, client: Client) -> UserScore:
         return user_score  # 无对局保持默认分
 
     # 计算各部分平均分
-    total_avg = sum(curr_time_scores + other_scores) / total_games
-    curr_avg = sum(curr_time_scores) / len(curr_time_scores) if curr_time_scores else total_avg
-    other_avg = sum(other_scores) / len(other_scores) if other_scores else total_avg
+    # 累加两个列表的总和
+    sum_curr = sum(curr_time_scores)
+    sum_other = sum(other_scores)
+    total_avg = (sum_curr + sum_other) / total_games
+
+    curr_avg = sum_curr / len(curr_time_scores) if curr_time_scores else total_avg
+    other_avg = sum_other / len(other_scores) if other_scores else total_avg
 
     # 应用权重计算最终得分 (近期80% + 历史20%)
     weighted_score = 0.8 * curr_avg + 0.2 * other_avg
@@ -106,6 +112,8 @@ def get_user_score(summoner: Any, client: Client) -> UserScore:
 
     return user_score
 
+def is_within_last_hours(dt: datetime, hours: int = 5) -> bool:
+    return datetime.now() - dt < timedelta(hours=hours)
 
 def list_game_history(puuid: str, client: Client) -> List[Any]:
     """获取用户战绩列表并过滤"""
