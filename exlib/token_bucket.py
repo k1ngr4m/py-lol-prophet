@@ -48,4 +48,3 @@ class TokenBucketLimiter:
         time.sleep(wait_time)
 
 
-query_game_summary_limiter = TokenBucketLimiter(rate_per_sec=50.0, burst=50)

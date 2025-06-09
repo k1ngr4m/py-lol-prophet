@@ -183,7 +183,7 @@ class Prophet:
         # 2. 重试获取当前召唤师信息（最多 5 次，每次间隔 1 秒）
         for attempt in range(5):
             try:
-                curr_summoner = api.get_summoner_profile()  # 需要自行实现
+                curr_summoner = api.get_summoner_profile(self.lcu_client)
                 self.curr_summoner = curr_summoner
                 break
             except Exception:
@@ -227,8 +227,9 @@ class Prophet:
             # 分发：游戏流程变化
             if uri == WS_EVT_GAME_FLOW_CHANGED:
                 try:
-                    game_flow = LolGameFlow(**json.loads(data))
-                except Exception:
+                    game_flow = LolGameFlow(data)
+                except Exception as e:
+                    logger.error("<UNK> LCU <UNK>: %s", e)
                     # 如果结构体解析失败，也可以先忽略
                     continue
                 self.on_game_flow_update(game_flow)
@@ -236,7 +237,7 @@ class Prophet:
             # 分发：抢/选人阶段更新
             elif uri == WS_EVT_CHAMP_SELECT_UPDATE_SESSION:
                 try:
-                    session_info = ChampSelectSessionInfo(**json.loads(data))
+                    session_info = ChampSelectSessionInfo()
                 except Exception as e:
                     logger.debug("champSelectUpdateSessionEvt 解析结构体失败: %s", e)
                     continue
@@ -265,7 +266,9 @@ class Prophet:
         等价于 Go 中：
             func (p *Prophet) onGameFlowUpdate(gameFlow models.GameFlow) { ... }
         """
-        logger.debug("切换状态: %s", game_flow)
+        game_flow = game_flow.value
+        logger.info("切换状态: %s", game_flow)
+
 
         # 进入英雄选择阶段
         if game_flow == LolGameFlow.CHAMP_SELECT:

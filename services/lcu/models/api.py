@@ -358,6 +358,33 @@ class SummonerProfileData(CommonResp):
     summoner_id: int = None
     time: int = None
 
+    # 更新数据模型
+@dataclass
+class UpdateSummonerProfileData:
+    availability: Optional[str] = None
+
+# 玩家简介数据模型
+@dataclass
+class SummonerProfileData(CommonResp):
+    availability: Optional[str] = None
+    gameName: Optional[str] = None
+    gameTag: Optional[str] = None
+    icon: Optional[int] = None
+    id: Optional[str] = None
+    lastSeenOnlineTimestamp: Optional[Any] = None
+    lol: Optional[dict] = None
+    name: Optional[str] = None
+    obfuscatedSummonerId: Optional[int] = None
+    patchline: Optional[str] = None
+    pid: Optional[str] = None
+    platformId: Optional[str] = None
+    product: Optional[str] = None
+    productName: Optional[str] = None
+    puuid: Optional[str] = None
+    statusMessage: Optional[str] = None
+    summary: Optional[str] = None
+    summonerId: Optional[int] = None
+    time: Optional[int] = None
 
 @dataclass
 class ChampSelectAction:

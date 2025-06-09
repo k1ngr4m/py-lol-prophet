@@ -5,9 +5,11 @@ import time
 import urllib
 from typing import Optional, Any
 import services.logger.logger as logger
-from exlib.token_bucket import query_game_summary_limiter
+from exlib.token_bucket import TokenBucketLimiter
+# from exlib.token_bucket import query_game_summary_limiter
 from services.lcu.client import Client, cli
-from services.lcu.models.api import Summoner, GameSummary
+from services.lcu.models.api import Summoner, GameSummary, CurrSummoner, GameListResp, SummonerProfileData, \
+    UpdateSummonerProfileData
 import requests
 import os
 import json
@@ -15,13 +17,21 @@ from typing import Optional
 from tenacity import retry, wait_fixed, stop_after_attempt
 from urllib.parse import urlencode
 
+# 消息类型
+JOINED_ROOM_MSG = "joined_room"
 
-def get_summoner_profile():
+query_game_summary_limiter = TokenBucketLimiter(rate_per_sec=50.0, burst=50)
+
+def get_curr_summoner() -> Optional[CurrSummoner]:
+    pass
+
+def list_games_by_summonerID(summonerID: int, begin, limit: int) -> Optional[GameListResp]:
     pass
 
 
-# 消息类型
-JOINED_ROOM_MSG = "joined_room"
+
+
+
 
 # 会话消息类型
 class ConversationMsgType:
@@ -214,3 +224,31 @@ def query_game_summary(game_id: int, client: Client) -> Optional[Any]:
     except Exception as e:
         logger.debug(f"查询对局详情异常: game_id={game_id}, error={str(e)}")
         return None
+
+
+# 更新玩家信息
+def update_summoner_profile(
+        client: Client,
+        update_data: UpdateSummonerProfileData
+) -> SummonerProfileData:
+    try:
+        url = f"/lol-chat/v1/me"
+
+        response = client._req("PUT", "/lol-chat/v1/me", update_data.__dict__)
+        data = response.decode('utf-8')
+        json_data = json.loads(data)
+        profile_data = SummonerProfileData(**json_data)
+
+        # 检查错误响应
+        if profile_data.error_code:
+            raise Exception(f"更新用户信息请求失败: {profile_data.message}")
+
+        return profile_data
+    except Exception as e:
+        print(f"更新用户信息失败: {e}")
+        raise
+
+# 获取玩家简介信息
+def get_summoner_profile(client: Client) -> SummonerProfileData:
+    data = UpdateSummonerProfileData()
+    return update_summoner_profile(client, data)

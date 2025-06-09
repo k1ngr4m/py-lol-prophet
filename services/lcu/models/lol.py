@@ -37,6 +37,7 @@ class GameStatus(str, Enum):
 
 # ---------- 游戏流程 ----------
 class GameFlow(str, Enum):
+    LOBBY = "Lobby"
     CHAMP_SELECT = "ChampSelect"   # 英雄选择中
     READY_CHECK = "ReadyCheck"     # 等待接受对局
     IN_PROGRESS = "InProgress"     # 进行中
