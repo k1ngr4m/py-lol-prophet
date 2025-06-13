@@ -8,7 +8,6 @@ from pkg.windows.process.process import Process, ProcessNotFound
 
 
 LOL_UX_PROCESS_NAME = "LeagueClientUx.exe"
-# COMMANDLINE_REG = re.compile(r'--remoting-auth-token=([^"]+).*?--app-port=(\d+)')
 COMMANDLINE_REG = re.compile(r'--remoting-auth-token=(\S+).*?--app-port=(\d+)')
 
 
