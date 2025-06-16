@@ -1,0 +1,14 @@
+psutil~=7.0.0
+pydantic~=2.10.6
+opentelemetry-instrumentation-openai~=0.14.2
+fastapi~=0.112.2
+sqlalchemy~=2.0.41
+websockets~=13.1
+requests~=2.32.3
+tenacity~=9.0.0
+urllib3~=2.2.3
+python-dotenv~=0.21.0
+websocket-client~=1.8.0
+uvicorn~=0.20.0
+pyinstrument~=5.0.2
+starlette~=0.38.2
