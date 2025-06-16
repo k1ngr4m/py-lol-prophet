@@ -294,18 +294,16 @@ def convert_curr_summoner_to_summoner(curr_summoner: SummonerProfileData) -> Sum
             pass
 
     return Summoner(
-        account_id=curr_summoner.summoner_id,
-        game_name=curr_summoner.game_name,
-        tag_line=curr_summoner.game_tag,
+        account_id=curr_summoner.summonerId,
+        game_name=curr_summoner.gameName,
+        tag_line=curr_summoner.gameTag,
         display_name=curr_summoner.name,
         internal_name=curr_summoner.name,
         name_change_flag=False,
         percent_complete_for_next_level=0,
-        privacy=None,
         profile_icon_id=curr_summoner.icon,
         puuid=curr_summoner.puuid,
-        reroll_points=None,
-        summoner_id=curr_summoner.summoner_id,
+        summoner_id=curr_summoner.summonerId,
         summoner_level=summoner_level,
         unnamed=False,
         xp_since_last_level=0,
