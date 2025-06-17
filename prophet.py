@@ -362,7 +362,7 @@ class Prophet:
     def capture_start_message(self):
         logger.info(global_vars.Conf.app_name + "已启动")
 
-    def init_gin(self):
+    def init_fastapi(self):
         # 确保 api 已初始化
         if self.api is None:
             raise RuntimeError("Api instance is not initialized")
@@ -371,6 +371,9 @@ class Prophet:
         debug = bool(self.opts.debug)
         app = FastAPI(debug=debug)
         middleware_list = []
+        origins = [
+            "http://localhost:5173",  # 根据你的前端开发服务器端口修改
+        ]
         # 2. 如果 enable_pprof 为 True，预留挂载 Profiling 中间件的入口
         if self.opts.enable_pprof:
             try:
@@ -387,6 +390,7 @@ class Prophet:
 
         # 3. 配置 CORS
         cors_kwargs = {
+            "allow_origins": origins,
             "allow_methods": ["*"],
             "allow_headers": ["*"],
             "expose_headers": ["*"],
@@ -563,7 +567,7 @@ class Prophet:
         threading.Thread(target=self.capture_start_message, daemon=True).start()
 
         # 初始化 Web 接口服务
-        self.init_gin()
+        self.init_fastapi()
 
         # 初始化 WebView（界面服务）
         threading.Thread(target=self.init_web_view, daemon=True).start()

@@ -38,6 +38,10 @@ def get_user_score(summoner: Any, client: Client) -> UserScore:
         logger.error(f"获取用户战绩失败: summoner_id={summoner_id}, error={str(e)}")
         return user_score
 
+    # 如果游戏列表为空，直接返回默认分数
+    if not game_list:
+        return user_score
+
     # 3. 构建KDA列表（从旧到新）
     curr_kda_list = [None] * len(game_list)
     for i, game_info in enumerate(game_list):
