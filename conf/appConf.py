@@ -47,7 +47,7 @@ class BuffApi(BaseModel):
 
 
 class WebViewConf(BaseModel):
-    IndexUrl: str = Field(default="https://lol.buffge.com/dev/client")
+    IndexUrl: str = Field(default="http://localhost:5176")
 
 
 class RateItemConf(BaseModel):
