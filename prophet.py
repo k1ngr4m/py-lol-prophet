@@ -442,8 +442,9 @@ class Prophet:
 
             # 获取基础 URL
             index_url = global_vars.Conf.web_view.IndexUrl
-            default_url = f"{index_url}?version={version.APP_VERSION}"
-            website_url = default_url
+            # default_url = f"{index_url}?version={version.APP_VERSION}"
+            # website_url = default_url
+            website_url = index_url
                 # 检查是否应自动打开浏览器
             should_auto_open = getattr(client_cfg, 'should_auto_open_browser', True)
             if not should_auto_open:

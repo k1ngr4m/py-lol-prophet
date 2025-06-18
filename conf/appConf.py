@@ -47,7 +47,7 @@ class BuffApi(BaseModel):
 
 
 class WebViewConf(BaseModel):
-    IndexUrl: str = Field(default="https://lol.buffge.com/dev/client")
+    IndexUrl: str = Field(default="http://localhost:5173")
 
 
 class RateItemConf(BaseModel):
@@ -135,7 +135,7 @@ class AppConf(BaseModel):
     buff_api: BuffApi = Field(default_factory=BuffApi)
     calc_score: CalcScoreConf = Field(default_factory=CalcScoreConf)
     app_name: str = Field(default="lol对局先知")
-    website_title: str = Field(default="lol.buffge.com")
+    website_title: str = Field(default="localhost:5173")
     adapt_Chat_website_title: str = Field(default="lol.buffge点康姆")
     project_url: str = Field(default="github.com/real-web-world/hh-lol-prophet")
     otlp: OtlpConf = Field(default_factory=OtlpConf)

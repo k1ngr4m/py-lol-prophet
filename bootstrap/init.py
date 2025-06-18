@@ -543,17 +543,6 @@ def init_app() -> Optional[Exception]:
         init_user_info()
 
         cfg = global_vars.Conf
-        # 初始化otel日志系统
-        # err = init_otel(
-        #     mode=cfg.mode,
-        #     app_name=cfg.app_name,
-        #     log_conf=cfg.log,
-        #     otlp_cfg=cfg.otlp,
-        #     user_info=global_vars.get_user_info()
-        # )
-
-        # if err:
-        #     return err
 
         # 初始化日志
         init_log(cfg.app_name)
