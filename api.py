@@ -59,6 +59,10 @@ class Api:
             "horse": horse
         }
 
+    async def GetCurrSummonerInfo(self, request: Request):
+        summoner = common.convert_curr_summoner_to_summoner(self.prophet.curr_summoner)
+        return summoner
+
     async def CopyHorseMsgToClipBoard(self, request: Request):
         # 剪贴板功能实现（此处简化）
         return {"code": 0, "msg": "success"}
