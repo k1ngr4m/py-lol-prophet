@@ -59,9 +59,17 @@ class Api:
             "horse": horse
         }
 
-    async def GetCurrSummonerInfo(self, request: Request):
+    async def GetSummonerInfo(self, request: Request):
+        data = await request.json()
+        summoner_name = data.get("summonerName", "").strip()
         summoner = common.convert_curr_summoner_to_summoner(self.prophet.curr_summoner)
         return summoner
+
+    async def GetCurrSummoner(self, request: Request):
+        summoner_name = self.prophet.curr_summoner.gameName
+        tag_line = self.prophet.curr_summoner.gameTag
+        summoner_all_name = summoner_name + "#" + tag_line
+        return {"summonerName":summoner_all_name}
 
     async def CopyHorseMsgToClipBoard(self, request: Request):
         # 剪贴板功能实现（此处简化）
