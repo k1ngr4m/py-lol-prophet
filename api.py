@@ -59,11 +59,11 @@ class Api:
             "horse": horse
         }
 
-    async def GetSummonerInfo(self, request: Request):
+    async def GetSummonerInfoByName(self, request: Request):
         data = await request.json()
-        summoner_name = data.get("summonerName", "").strip()
-        summoner = common.convert_curr_summoner_to_summoner(self.prophet.curr_summoner)
-        return summoner
+        summoner_name = data.get("name", "").strip()
+        summoner_info = api.query_summoner_by_name(summoner_name, self.prophet.lcu_client)
+        return summoner_info
 
     async def GetCurrSummoner(self, request: Request):
         summoner_name = self.prophet.curr_summoner.gameName

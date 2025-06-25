@@ -24,11 +24,11 @@ def register_routes(app: FastAPI, api: Api):
         return await api.GetCurrSummoner(request)
 
     @v1.post(
-        "/summoner/info",
+        "/summoner/queryByName/info",
         dependencies=[Depends(api.ProphetActiveMid)],
     )
     async def get_summoner_info(request: Request):
-        return await api.GetSummonerInfo(request)
+        return await api.GetSummonerInfoByName(request)
 
     # 2.1 查询用户马匹信息（带中间件 ProphetActiveMid）
     @v1.post(
