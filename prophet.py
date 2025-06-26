@@ -10,6 +10,7 @@ from typing import Optional, Callable, Any
 
 import version
 from option import ApplyOption, WithDebug, WithProd
+from services.db.remote.mysqlutil import MysqlUtil
 from services.lcu import common, client
 from services.lcu.models.api import SummonerProfileData, ChampSelectSessionInfo
 from services.lcu import reverse_proxy
@@ -82,7 +83,8 @@ class Prophet:
                  api: Optional[Api] = None,
                  lock: Optional[threading.Lock] = None,
                  game_state: GameState = GameState.NONE,
-                 lcu_rp: Optional[RP] = None):
+                 lcu_rp: Optional[RP] = None,
+                 mysql: Optional[Any] = None,):
         self.ctx = ctx
         self.opts = opts if opts is not None else default_opts
         self.http_srv = http_srv
@@ -96,6 +98,7 @@ class Prophet:
         self.lock = lock if lock is not None else threading.Lock()
         self.game_state = game_state
         self.lcu_rp = lcu_rp
+        self.mysql = mysql
 
     # 以下方法需要在 Prophet 中定义或已有：
     def champion_select_start(self):
@@ -579,6 +582,7 @@ class Prophet:
 def new_prophet(*apply_options: ApplyOption) -> Prophet:
     ctx = CancellationContext()
     cancel = ctx.cancel
+    mysql = MysqlUtil()
 
     # 创建 Prophet 实例
     p = Prophet(
@@ -586,7 +590,8 @@ def new_prophet(*apply_options: ApplyOption) -> Prophet:
         cancel=cancel,
         lock=threading.Lock(),
         opts=default_opts,
-        game_state=GameState.NONE
+        game_state=GameState.NONE,
+        mysql = mysql
     )
 
     # 设置开发/生产模式

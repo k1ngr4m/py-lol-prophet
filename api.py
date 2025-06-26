@@ -1,14 +1,19 @@
+import time
+
 from fastapi import HTTPException, Request
 import json
 from typing import Any, Dict, Optional
 
 import global_conf.global_conf as global_vars
+from plugins.sol101.common import get_user_game_history_list
+from plugins.sol101.update_db import update_summoner_data_to_db
 from services.db.models import config
 from services.lcu import common
 from services.lcu import api
 from app import get_user_score
 from services.lcu.client import cli
 from services.lcu.models.api import Summoner
+from plugins.sol101.score_cal import get_filtered_data
 
 
 class Api:
@@ -66,9 +71,18 @@ class Api:
         return summoner_info
 
     async def GetCurrSummoner(self, request: Request):
-        summoner_name = self.prophet.curr_summoner.gameName
-        tag_line = self.prophet.curr_summoner.gameTag
-        summoner_all_name = summoner_name + "#" + tag_line
+        if not self.prophet.curr_summoner:
+            for attempt in range(5):
+                try:
+                    curr_summoner = api.get_summoner_profile(self.prophet.lcu_client)
+                    self.prophet.curr_summoner = curr_summoner
+                    break
+                except Exception:
+                    time.sleep(1)
+        else:
+            summoner_name = self.prophet.curr_summoner.gameName
+            tag_line = self.prophet.curr_summoner.gameTag
+            summoner_all_name = summoner_name + "#" + tag_line
         return {"summonerName":summoner_all_name}
 
     async def CopyHorseMsgToClipBoard(self, request: Request):
@@ -122,3 +136,36 @@ class Api:
     #             self.curr_kda = curr_kda
     #
     #     return ScoreInfo(score=150, curr_kda="5/2/8")
+    async def UpdateSummonerMatchesDetail(self, request):
+        data = await request.json()
+        summoner_name = data.get("name", "").strip()
+
+        # 确保 prophet 已初始化 LCU 客户端
+        if not hasattr(self.prophet, 'lcu_client') or self.prophet.lcu_client is None:
+            raise HTTPException(status_code=500, detail="LCU 客户端未初始化")
+
+        # 获取召唤师信息
+        if not summoner_name:
+            if not self.prophet.curr_summoner:
+                raise HTTPException(status_code=500, detail="系统错误")
+            summoner = common.convert_curr_summoner_to_summoner(self.prophet.curr_summoner)
+        else:
+            # 使用 prophet 的 lcu_client 实例
+            summoner_info = api.query_summoner_by_name(summoner_name, self.prophet.lcu_client)
+            if not summoner_info or summoner_info.summoner_id <= 0:
+                raise HTTPException(status_code=404, detail="未查询到召唤师")
+            summoner = summoner_info
+
+        game_list = get_user_game_history_list(summoner, self.prophet.lcu_client)
+
+        summoner_id = summoner.account_id
+        filtered_data = [get_filtered_data(game, summoner_id, summoner_name)
+                         for game in game_list
+                         if int(game.get("gameDuration", 0)) > 260]
+        if filtered_data:
+            affected_rows1, affected_rows2 = update_summoner_data_to_db(filtered_data)
+        #     save_count = affected_rows1
+        #     count += affected_rows1
+        #     logger.debug(
+        #         f'此次 {summoner_allName} 共获取 {len(filtered_data)} 条数据，V6已保存 {affected_rows1} 条数据，ana已保存 {affected_rows2} 条数据')
+        return filtered_data

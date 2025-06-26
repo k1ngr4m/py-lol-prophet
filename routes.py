@@ -73,5 +73,11 @@ def register_routes(app: FastAPI, api: Api):
         # 也可以直接把 Request 对象传进去，让后端自己从 request.url.path 里解析
         return await api.LcuProxy(request)
 
+    @v1.post(
+        "/api/summoner/update",
+        dependencies=[Depends(api.ProphetActiveMid)],
+    )
+    async def update_summoner(request: Request):
+        return await api.UpdateSummonerMatchesDetail(request)
     # 最后把 v1 注册到主应用
     app.include_router(v1)
