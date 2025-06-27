@@ -17,9 +17,8 @@ class PerMinDeltas:
 
 @dataclass
 class CommonResp:
-    error_code: Optional[str] = None
-    http_status: Optional[int] = None
-    message: Optional[str] = None
+    code: Optional[int] = 0
+    msg: Optional[str] = "success"
 
 
 @dataclass
@@ -317,7 +316,7 @@ class ConversationMsg:
 
 
 @dataclass
-class Summoner(CommonResp):
+class Summoner():
     account_id: int = None
     game_name: str = None
     tag_line: str = None

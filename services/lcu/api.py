@@ -240,8 +240,8 @@ def update_summoner_profile(
         profile_data = SummonerProfileData(**json_data)
 
         # 检查错误响应
-        if profile_data.error_code:
-            raise Exception(f"更新用户信息请求失败: {profile_data.message}")
+        if profile_data.code != 0:
+            raise Exception(f"更新用户信息请求失败: {profile_data.msg}")
 
         return profile_data
     except Exception as e:

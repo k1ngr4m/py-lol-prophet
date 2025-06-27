@@ -68,8 +68,11 @@ class Api:
         data = await request.json()
         summoner_name = data.get("name", "").strip()
         summoner_info = api.query_summoner_by_name(summoner_name, self.prophet.lcu_client)
-        return summoner_info
-
+        return {
+            "code": 0,
+            "msg": "success",
+            "data": summoner_info.__dict__
+        }
     async def GetCurrSummoner(self, request: Request):
         if not self.prophet.curr_summoner:
             for attempt in range(5):
@@ -79,11 +82,17 @@ class Api:
                     break
                 except Exception:
                     time.sleep(1)
-        else:
-            summoner_name = self.prophet.curr_summoner.gameName
-            tag_line = self.prophet.curr_summoner.gameTag
-            summoner_all_name = summoner_name + "#" + tag_line
-        return {"summonerName":summoner_all_name}
+
+        summoner_name = self.prophet.curr_summoner.gameName
+        tag_line = self.prophet.curr_summoner.gameTag
+        summoner_all_name = summoner_name + "#" + tag_line
+        return {
+            "code": 0,
+            "msg": "success",
+            "data":{
+                "summonerName": summoner_all_name
+            }
+        }
 
     async def CopyHorseMsgToClipBoard(self, request: Request):
         # 剪贴板功能实现（此处简化）

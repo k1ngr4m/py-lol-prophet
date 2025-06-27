@@ -17,9 +17,7 @@ def register_routes(app: FastAPI, api: Api):
     # 2. 创建 /v1 路由组
     v1 = APIRouter(prefix="/v1")
 
-    @v1.get(
-        "/getCurrSummoner"
-    )
+    @v1.get("/getCurrSummoner")
     async def get_curr_summoner(request: Request):
         return await api.GetCurrSummoner(request)
 
