@@ -145,6 +145,7 @@ class Api:
     #             self.curr_kda = curr_kda
     #
     #     return ScoreInfo(score=150, curr_kda="5/2/8")
+
     async def QuerySummonerMatchesList(self, request):
         data = await request.json()
         summoner_name = data.get("name", "").strip()
@@ -172,11 +173,7 @@ class Api:
                          for game in game_list
                          if int(game.get("gameDuration", 0)) > 260]
         if filtered_data:
-            affected_rows1, affected_rows2 = update_summoner_data_to_db(filtered_data)
-        #     save_count = affected_rows1
-        #     count += affected_rows1
-        #     logger.debug(
-        #         f'此次 {summoner_allName} 共获取 {len(filtered_data)} 条数据，V6已保存 {affected_rows1} 条数据，ana已保存 {affected_rows2} 条数据')
+            update_summoner_data_to_db(filtered_data)
         return {
             "code": 0,
             "msg": "success",
