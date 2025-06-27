@@ -33,7 +33,7 @@ def list_game_history(puuid: str, client: Client) -> List[Any]:
     """获取用户战绩列表并过滤"""
     # 获取全局配置
     score_cfg = global_vars.get_score_conf()
-    limit = 10
+    limit = 9
 
     # 调用API获取战绩列表
     try:

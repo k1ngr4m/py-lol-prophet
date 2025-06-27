@@ -145,7 +145,7 @@ class Api:
     #             self.curr_kda = curr_kda
     #
     #     return ScoreInfo(score=150, curr_kda="5/2/8")
-    async def UpdateSummonerMatchesDetail(self, request):
+    async def QuerySummonerMatchesList(self, request):
         data = await request.json()
         summoner_name = data.get("name", "").strip()
 
@@ -177,4 +177,11 @@ class Api:
         #     count += affected_rows1
         #     logger.debug(
         #         f'此次 {summoner_allName} 共获取 {len(filtered_data)} 条数据，V6已保存 {affected_rows1} 条数据，ana已保存 {affected_rows2} 条数据')
-        return filtered_data
+        return {
+            "code": 0,
+            "msg": "success",
+            "data": {
+                "result": game_list,  # 列表放在items字段
+                "count": len(game_list)  # 可添加额外信息
+            }
+        }
