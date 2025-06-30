@@ -5,7 +5,7 @@ import json
 from typing import Any, Dict, Optional
 
 import global_conf.global_conf as global_vars
-from plugins.sol101.common import get_user_game_history_list
+from plugins.sol101.common import get_user_game_history_list, list_game_history
 from plugins.sol101.update_db import update_summoner_data_to_db
 from services.db.models import config
 from services.lcu import common
@@ -149,6 +149,13 @@ class Api:
     async def QuerySummonerMatchesList(self, request):
         data = await request.json()
         summoner_name = data.get("name", "").strip()
+        page = int(data.get("page", 1))  # 默认第一页
+        page_size = int(data.get("limit", 10))  # 默认每页10条
+
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 200:  # 限制每页最多100条
+            page_size = 10
 
         # 确保 prophet 已初始化 LCU 客户端
         if not hasattr(self.prophet, 'lcu_client') or self.prophet.lcu_client is None:
@@ -166,19 +173,48 @@ class Api:
                 raise HTTPException(status_code=404, detail="未查询到召唤师")
             summoner = summoner_info
 
-        game_list = get_user_game_history_list(summoner, self.prophet.lcu_client)
+        # 计算分页参数
+        begin = (page - 1) * page_size
+        limit = page_size
+
+        # 直接获取分页后的游戏历史
+        resp = list_game_history(summoner.puuid, begin, limit, self.prophet.lcu_client)
+        if not resp:
+            return {
+                "code": 0,
+                "msg": "success",
+                "data": {
+                    "items": [],
+                    "total": 0,
+                    "page": page,
+                    "page_size": page_size,
+                    "has_more": False
+                }
+            }
+
+        # 处理游戏数据
+        game_list = resp
+        # 反转列表使对局按时间从旧到新排序
+        # game_list.reverse()
 
         summoner_id = summoner.account_id
         filtered_data = [get_filtered_data(game, summoner_id, summoner_name)
                          for game in game_list
                          if int(game.get("gameDuration", 0)) > 260]
+
         if filtered_data:
             update_summoner_data_to_db(filtered_data)
+
+        # 由于LCU API没有直接返回总条数，我们通过判断返回数量是否等于请求数量来推测是否有更多数据
+        has_more = len(game_list) == page_size
+
         return {
             "code": 0,
             "msg": "success",
             "data": {
-                "result": game_list,  # 列表放在items字段
-                "count": len(game_list)  # 可添加额外信息
+                "items": game_list,
+                "page": page,
+                "page_size": len(game_list),
+                "has_more": has_more
             }
         }

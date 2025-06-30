@@ -176,7 +176,7 @@ def list_games_by_puuid(puuid: str, begin: int, limit: int, client: Client) -> O
     # 构建查询参数
     params = {
         'begIndex': begin,
-        'endIndex': begin + limit
+        'endIndex': begin + limit - 1
     }
     query_str = urlencode(params)
 

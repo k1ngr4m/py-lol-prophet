@@ -4,6 +4,7 @@ from plugins.sol101.config.championName_zh import championName_zh
 from datetime import datetime
 import services.logger.logger as logger
 from plugins.sol101.config.itemList import item_name
+from plugins.sol101.config.game_data_champs import game_data_champs_dict
 
 # 保留特定的键值对
 def get_filtered_data(data, summoner_id, summoner_allName):
@@ -14,8 +15,7 @@ def get_filtered_data(data, summoner_id, summoner_allName):
             "assists": stats["assists"],
             "champLevel": stats["champLevel"],
             "championId": participant["championId"],
-            # "championName": championName_zh.get(stats["championName"], stats["championName"]),
-            "championName": str(participant["championId"]),
+            "championName": str(get_champion_name_by_id(participant["championId"])),
             "deaths": stats["deaths"],
             "firstBloodKill": stats["firstBloodKill"],
             "goldEarned": stats["goldEarned"],
@@ -183,7 +183,15 @@ def cal_per_minute(totalValue, totalTime):
 
 
 def replace_itemName(item_num):
-    return item_name[str(item_num)]['name']
+    # 确保 item_num 是字符串
+    item_num_str = str(item_num)
+
+    # 先检查键是否存在
+    if item_num_str in item_name:
+        return item_name[item_num_str].get('name', item_num_str)
+    else:
+        # 处理不存在的键，可以返回默认值或记录错误
+        return item_num_str  # 或者返回 "Unknown Item" 等其他默认值
 
 def find_min_max_values(min_max_values_list, game_mode, game_version, attribute):
     """
@@ -317,6 +325,26 @@ def calculate_single_score(value, min_val, max_val, factor):
     return 0
 
 
+def get_champion_name_by_id(champ_id):
+    """
+    根据 champId 获取对应的英雄名称
+
+    参数:
+        game_data_champs_dict: 包含英雄数据的字典
+        champ_id: 要查找的英雄ID (字符串或数字)
+
+    返回:
+        如果找到则返回英雄名称，否则返回 None
+    """
+    # 确保champ_id是字符串类型，方便比较
+    champ_id_str = str(champ_id)
+
+    # 遍历data列表中的每个英雄字典
+    for champion in game_data_champs_dict.get("data", []):
+        if champion.get("champId") == champ_id_str:
+            return champion.get("title")
+
+    return None  # 如果没有找到匹配的champId
+
 if __name__ == '__main__':
-    version = format_game_version("14.21.629.1400")
-    print(version)
+    print(str(get_champion_name_by_id(1)))

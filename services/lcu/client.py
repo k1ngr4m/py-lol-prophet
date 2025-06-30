@@ -68,6 +68,7 @@ class Client:
         """
         full_url = self.base_url + url
         headers = {}
+        print(f"full_url: {full_url}")
         try:
             if data is not None:
                 # 发送 JSON body
